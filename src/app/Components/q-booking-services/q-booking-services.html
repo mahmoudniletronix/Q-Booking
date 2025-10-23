@@ -51,7 +51,6 @@
                                     <td *ngFor="let d of sc.doctors" class="text-center schedule-cell">
                                         <div class="tickets-grid-container">
                                             <div class="tickets-grid">
-                                                <!-- عرض 55 خانة مع الفترات الزمنية -->
                                                 <div *ngFor="let slot of getSlots(sc.id, d.id, day)"
                                                     class="ticket-mini-cell clickable" [ngClass]="{
                                                         'received': slot.type === 'received',
@@ -60,13 +59,11 @@
                                                     }" [title]="getSlotInfo(slot)"
                                                     (click)="onSlotClick(sc.id, d, day, slot)">
 
-                                                    <!-- عرض الوقت في الخلية -->
                                                     <div class="slot-time" *ngIf="slot.timeSlot">
                                                         {{ slot.timeSlot.split(' ')[0] }}
                                                     </div>
                                                     <ng-container *ngIf="slot.type === 'empty'">+</ng-container>
 
-                                                    <!-- Popup محسن مع المعلومات الزمنية -->
                                                     <div *ngIf="slot.type !== 'empty'" class="ticket-popup">
                                                         <div class="popover-title">Appointment Details</div>
                                                         <div class="pop-row">
