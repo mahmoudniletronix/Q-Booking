@@ -32,3 +32,14 @@ app-footer {
   background: #f8f9fa;
   width: 100%;
 }
+.schedule-viewport {
+  max-height: calc(100dvh - 72px - 96px - 32px);
+  overflow: auto;
+}
+.schedule-table thead.sticky-top {
+  top: 0;
+  z-index: 2;
+}
+.schedule-table tbody tr {
+  position: relative;
+}
