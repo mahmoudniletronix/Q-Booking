@@ -43,3 +43,26 @@ app-footer {
 .schedule-table tbody tr {
   position: relative;
 }
+.floating-logo {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  width: 90px;
+  height: auto;
+  opacity: 0.85;
+  z-index: 2000;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.floating-logo:hover {
+  transform: scale(1.05);
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .floating-logo {
+    width: 70px;
+    bottom: 14px;
+    right: 14px;
+  }
+}
