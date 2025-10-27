@@ -1,0 +1,122 @@
+.reserved-page .title {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.reserved-page .sub {
+  font-size: 12px;
+}
+
+.res-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.res-card {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.res-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+.shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.07), rgba(59, 130, 246, 0.04));
+  pointer-events: none;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.time {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.type-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+.type-chip.reserved {
+  color: #3b0764;
+  background: #f3e8ff;
+  border-color: #e9d5ff;
+}
+
+.card-mid {
+  margin-top: 6px;
+}
+.patient {
+  font-weight: 700;
+  color: #111827;
+}
+.muted {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.card-bottom {
+  margin-top: 10px;
+}
+.cta {
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.1s, filter 0.1s;
+}
+.cta .ico {
+  font-size: 14px;
+}
+.cta.view {
+  background: linear-gradient(90deg, #c4b5fd 0, #a78bfa 100%);
+  color: #30156b;
+  box-shadow: 0 4px 10px rgba(49, 20, 107, 0.15);
+}
+.cta.view:hover {
+  transform: scale(1.04);
+  filter: saturate(1.05);
+}
+
+.empty-state .emoji {
+  font-size: 36px;
+}
+.btn-back {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #1e293b;
+}
+.btn-back:hover {
+  background: #e2e8f0;
+}
+
+@media (max-width: 576px) {
+  .res-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .time {
+    font-size: 16px;
+  }
+}

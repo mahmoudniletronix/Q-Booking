@@ -1,0 +1,35 @@
+<div class="container my-4 available-page">
+  <div class="header-wrap">
+    <h5 class="title">Available — Day {{ day }}</h5>
+    <div class="sub text-muted">Pick a time to add a new reservation.</div>
+  </div>
+
+  <div *ngIf="slots.length; else noSlots" class="avail-grid">
+    <div class="avail-card" *ngFor="let s of slots; trackBy: trackBySlot" (click)="onSlotClick(s)">
+      <div class="card-top">
+        <span class="time">{{ s.timeSlot }}</span>
+        <span class="type-chip available">Available</span>
+      </div>
+
+      <div class="card-bottom">
+        <button class="cta add" type="button">
+          <span class="ico">➕</span>
+          Add Reservation
+        </button>
+      </div>
+
+      <div class="shine"></div>
+    </div>
+  </div>
+
+  <ng-template #noSlots>
+    <div class="empty-state text-center mt-5">
+      <div class="emoji">🗓️</div>
+      <div class="lead fw-semibold">No available slots for this day.</div>
+    </div>
+  </ng-template>
+
+  <div class="footer-actions mt-3">
+    <button class="btn-back" (click)="back()">↩ Back</button>
+  </div>
+</div>

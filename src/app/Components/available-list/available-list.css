@@ -1,0 +1,110 @@
+.available-page .title {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.available-page .sub {
+  font-size: 12px;
+}
+
+.avail-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+.avail-card {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.avail-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+.shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.07), rgba(59, 130, 246, 0.04));
+  pointer-events: none;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.time {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.type-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+.type-chip.available {
+  color: #0a7f6f;
+  background: #e9fbf7;
+  border-color: #b6efe6;
+}
+
+.card-bottom {
+  margin-top: 10px;
+}
+.cta {
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.1s, filter 0.1s;
+}
+.cta .ico {
+  font-size: 14px;
+}
+.cta.add {
+  background: linear-gradient(90deg, #a7f3d0 0, #34d399 100%);
+  color: #064e3b;
+  box-shadow: 0 4px 10px rgba(6, 78, 59, 0.15);
+}
+.cta.add:hover {
+  transform: scale(1.04);
+  filter: saturate(1.05);
+}
+
+.empty-state .emoji {
+  font-size: 36px;
+}
+.btn-back {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #1e293b;
+}
+.btn-back:hover {
+  background: #e2e8f0;
+}
+
+@media (max-width: 576px) {
+  .avail-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .time {
+    font-size: 16px;
+  }
+}

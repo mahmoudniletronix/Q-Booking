@@ -1,263 +1,80 @@
-<div class="container my-4">
-    <div class="card shadow-sm border-0">
-        <div class="card-body p-4">
-
-            <!-- ============================ TABLE VIEW ============================ -->
-            <div *ngIf="currentView === 'table'">
-                <h4 class="text-center text-muted fw-bold mb-4">
-                    {{ selectedClinic?.name || 'Select a clinic' }}
-                </h4>
-
-                <div class="row g-3 mb-4 align-items-center">
-                    <div class="col-md-6">
-                        <label class="form-label">Clinic</label>
-                        <select class="form-select" [(ngModel)]="selectedClinicId">
-                            <option [ngValue]="null" disabled>Select clinic...</option>
-                            <option *ngFor="let c of clinics" [ngValue]="c.id">{{ c.name }}</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div *ngIf="!selectedClinicId" class="text-center text-muted py-5">
-                    <div class="fs-5">Please choose a clinic to view the monthly schedule.</div>
-                </div>
-
-                <div *ngIf="selectedClinic as sc" class="schedule-wrap">
-                    <div class="time-distribution mb-3 p-3 bg-light rounded" *ngIf="selectedDay">
-                        <h6 class="mb-2">📅 Time Distribution - Day {{selectedDay}}</h6>
-                        <div class="d-flex flex-wrap gap-2 small">
-                            <span *ngFor="let item of getTimeDistribution(sc.id, sc.doctors[0].id, selectedDay)"
-                                class="badge bg-secondary">
-                                {{item.time}}: {{item.count}} tickets
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive rounded-3 border">
-                        <table class="table table-bordered align-middle mb-0 schedule-table">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th class="first-col sticky-col text-center">Day</th>
-                                    <th *ngFor="let d of sc.doctors" class="text-center doctor-header sticky-top">
-                                        {{ d.name }}
-                                        <div class="small text-muted">(30 min/slot)</div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr *ngFor="let day of days">
-                                    <th class="first-col sticky-col text-center">{{ day }}</th>
-
-                                    <td *ngFor="let d of sc.doctors" class="text-center schedule-cell">
-                                        <div class="tickets-grid-container">
-                                            <div class="tickets-grid">
-                                                <div *ngFor="let slot of getSlots(sc.id, d.id, day)"
-                                                    class="ticket-mini-cell clickable" [ngClass]="{
-                                                        'received': slot.type === 'received',
-                                                        'not-received': slot.type === 'notReceived',
-                                                        'empty': slot.type === 'empty'
-                                                    }" [title]="getSlotInfo(slot)"
-                                                    (click)="onSlotClick(sc.id, d, day, slot)">
-
-                                                    <div class="slot-time" *ngIf="slot.timeSlot">
-                                                        {{ slot.timeSlot.split(' ')[0] }}
-                                                    </div>
-                                                    <ng-container *ngIf="slot.type === 'empty'">+</ng-container>
-
-                                                    <div *ngIf="slot.type !== 'empty'" class="ticket-popup">
-                                                        <div class="popover-title">Appointment Details</div>
-                                                        <div class="pop-row">
-                                                            <div class="name">{{ slot.ticket?.patient }}</div>
-                                                            <div class="meta">#{{ slot.ticket?.id }} • {{
-                                                                slot.ticket?.phone }}</div>
-                                                            <div class="time-info">⏰ {{ slot.timeSlot }}</div>
-                                                            <div class="status-badge"
-                                                                [ngClass]="slot.ticket?.status?.toLowerCase()">
-                                                                {{ slot.ticket?.status }}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div class="ticket-count-badge"
-                                                [title]="'Total: ' + totalCount(sc.id, d.id, day) + ' tickets'">
-                                                {{ totalCount(sc.id, d.id, day) }}
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="d-flex gap-3 mt-3 small text-muted">
-                        <div><span class="legend received"></span> Received (30 min)</div>
-                        <div><span class="legend not-received"></span> Not Received (30 min)</div>
-                        <div><span class="legend empty"></span> Available Slot (30 min)</div>
-                    </div>
-
-                    <div class="mt-2 text-muted small">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Each slot represents 30 minutes. 2 slots per hour. Total daily capacity: 55 slots (27.5 hours)
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================ PATIENT SUMMARY ============================ -->
-            <div *ngIf="currentView === 'patientSummary'">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="text-primary mb-0">
-                        Patient Summary — {{ selectedDoctor?.name }} — Day {{ selectedDay }}
-                    </h4>
-                    <div>
-                        <button class="btn btn-primary me-2" (click)="printSummary()">📄 Print</button>
-                        <button class="btn btn-secondary" (click)="backToTable()">↩ Cancel</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-body p-4">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="text-muted">Patient Name</div>
-                                <div class="fw-semibold">{{ selectedTicket?.patient }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted">Ticket ID</div>
-                                <div class="fw-semibold">#{{ selectedTicket?.id }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted">Phone</div>
-                                <div class="fw-semibold">{{ selectedTicket?.phone }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted">Time Slot</div>
-                                <div class="fw-semibold text-success">{{ selectedTicket?.timeSlot }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted">Status</div>
-                                <div class="fw-semibold">{{ selectedTicket?.status }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="text-muted">Duration</div>
-                                <div class="fw-semibold">30 minutes</div>
-                            </div>
-                        </div>
-
-                        <div class="mt-4 d-flex gap-2">
-                            <button class="btn btn-outline-primary" (click)="goEditSelected()">✏ Edit</button>
-                            <button class="btn btn-secondary" (click)="backToTable()">Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================ EDIT PATIENT ============================ -->
-            <div *ngIf="currentView === 'editPatient'">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="text-primary mb-0">
-                        Edit Patient — {{ selectedDoctor?.name }} — Day {{ selectedDay }}
-                    </h4>
-                    <div>
-                        <button class="btn btn-secondary" (click)="backToTable()">↩ Cancel</button>
-                    </div>
-                </div>
-
-                <div class="row justify-content-center">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body p-4">
-                                <form (ngSubmit)="saveEdit()">
-                                    <div class="mb-3">
-                                        <label class="form-label">Time Slot</label>
-                                        <input type="text" class="form-control" [value]="editModel.timeSlot" disabled>
-                                        <div class="form-text">This appointment is scheduled for {{editModel.timeSlot}}
-                                            (30 minutes)</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Patient Name</label>
-                                        <input type="text" class="form-control" [(ngModel)]="editModel.patient"
-                                            name="editName" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Phone</label>
-                                        <input type="tel" class="form-control" [(ngModel)]="editModel.phone"
-                                            name="editPhone" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Status</label>
-                                        <select class="form-select" [(ngModel)]="editModel.status" name="editStatus">
-                                            <option>Received</option>
-                                            <option>Not Received</option>
-                                        </select>
-                                    </div>
-                                    <div class="d-grid gap-2">
-                                        <button class="btn btn-success" type="submit">Save Changes</button>
-                                        <button class="btn btn-outline-secondary" type="button"
-                                            (click)="goSummary()">Back to Summary</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================ ADD PATIENT ============================ -->
-            <div *ngIf="currentView === 'addPatient'">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="text-primary mb-0">
-                        Add New Patient — {{ selectedDoctor?.name }} — Day {{ selectedDay }}
-                    </h4>
-                    <button class="btn btn-secondary" (click)="backToTable()">↩ Cancel</button>
-                </div>
-
-                <div class="row justify-content-center">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body p-4">
-                                <form (ngSubmit)="addPatient()">
-                                    <div class="mb-3">
-                                        <label class="form-label">Time Slot</label>
-                                        <input type="text" class="form-control" [value]="newPatient.timeSlot" disabled>
-                                        <div class="form-text">This slot is {{newPatient.timeSlot}} (30 minutes)</div>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Patient Name</label>
-                                        <input type="text" class="form-control" [(ngModel)]="newPatient.patient"
-                                            name="newName" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Phone Number</label>
-                                        <input type="tel" class="form-control" [(ngModel)]="newPatient.phone"
-                                            name="newPhone" required>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">Status</label>
-                                        <select class="form-select" [(ngModel)]="newPatient.status" name="newStatus">
-                                            <option>Received</option>
-                                            <option>Not Received</option>
-                                        </select>
-                                    </div>
-                                    <div class="d-grid gap-2">
-                                        <button type="submit" class="btn btn-success"
-                                            [disabled]="!newPatient.patient || !newPatient.phone">
-                                            Add Patient to {{newPatient.timeSlot}}
-                                        </button>
-                                        <button class="btn btn-outline-secondary" type="button"
-                                            (click)="backToTable()">Cancel</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                        <div class="small text-muted mt-2">
-                            * سيتم حجز الموعد في الفترة الزمنية المحددة ({{newPatient.timeSlot}} - مدة 30 دقيقة).
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+<div class="container my-1">
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-1">
+      <div class="row g-2 mb-3 align-items-center">
+        <div class="col-md-1"><label class="form-label small">Clinic</label></div>
+        <div class="col-md-5">
+          <select
+            class="form-select form-select-sm"
+            [ngModel]="sch.selectedClinicId()"
+            (ngModelChange)="onClinicChange($event)"
+          >
+            <option [ngValue]="null" disabled>Select clinic...</option>
+            <option *ngFor="let c of sch.clinics" [ngValue]="c.id">{{ c.name }}</option>
+          </select>
         </div>
+        <div class="col-md-6">
+          <div class="d-flex gap-3 mt-2 small text-muted legend-wrap">
+            <div><span class="legend reserved"></span> Reserved</div>
+            <div><span class="legend available"></span> Available</div>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="!sch.selectedClinicId()" class="text-center text-muted py-4">
+        <div class="fs-6">Please choose a clinic to view the monthly schedule.</div>
+      </div>
+
+      <div *ngIf="sch.selectedClinicId() as clinicId" class="schedule-wrap">
+        <div class="table-responsive rounded-2 border schedule-viewport">
+          <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th class="first-col sticky-col text-center">Day</th>
+                <th
+                  *ngFor="let d of selectedClinicDoctors; trackBy: trackByDoctor"
+                  class="text-center doctor-header sticky-top"
+                >
+                  {{ d.name }}
+                  <div class="small text-muted">(30 min/slot)</div>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <tr *ngFor="let day of sch.days; trackBy: trackByDay">
+                <th class="first-col sticky-col text-center">{{ day }}</th>
+                <td
+                  *ngFor="let d of selectedClinicDoctors; trackBy: trackByDoctor"
+                  class="text-center schedule-cell"
+                >
+                  <div class="stats-row compact">
+                    <button
+                      class="pill reserved"
+                      [routerLink]="['/patient/received', clinicId, d.id, day]"
+                      [title]="counts(clinicId, d.id, day).reserved + ' reserved'"
+                      type="button"
+                    >
+                      <span class="num">{{ counts(clinicId, d.id, day).reserved }}</span>
+                      <span class="label">Reserved</span>
+                    </button>
+
+                    <button
+                      class="pill available"
+                      [routerLink]="['/patient/available', clinicId, d.id, day]"
+                      [title]="counts(clinicId, d.id, day).available + ' available'"
+                      type="button"
+                    >
+                      <span class="num">{{ counts(clinicId, d.id, day).available }}</span>
+                      <span class="label">Available</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
+  </div>
 </div>

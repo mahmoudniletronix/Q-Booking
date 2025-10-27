@@ -6,7 +6,7 @@ import { QBookingServices } from './Components/q-booking-services/q-booking-serv
 
 @Component({
   selector: 'app-root',
-  imports: [Header, Footer, QBookingServices],
+  imports: [Header, Footer, RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

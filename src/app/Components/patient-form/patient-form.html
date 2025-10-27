@@ -1,0 +1,85 @@
+<div class="patient-form-page">
+  <div class="container my-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h4 class="title">
+        <span class="accent">{{ mode === 'add' ? 'Add New Patient' : 'Edit Patient' }}</span>
+        <span class="muted">— Day {{ day }}</span>
+      </h4>
+      <button class="btn btn-outline-secondary back-btn" (click)="goBack()">
+        ↩ Back to Calendar
+      </button>
+    </div>
+
+    <!-- Card -->
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card patient-card shadow-lg border-0">
+          <div class="card-body p-4">
+            <form (ngSubmit)="save()" novalidate>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Time Slot</label>
+                <input type="text" class="form-control readonly" [value]="timeInfo" disabled />
+                <div class="form-text">
+                  {{
+                    mode === 'add' ? 'This slot is available for reservation' : 'Appointment time:'
+                  }}
+                  <strong>{{ timeInfo }}</strong> (30 minutes)
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Patient Name</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  [(ngModel)]="model.patient"
+                  name="patient"
+                  placeholder="Enter full name"
+                  required
+                />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Phone</label>
+                <input
+                  type="tel"
+                  class="form-control"
+                  [(ngModel)]="model.phone"
+                  name="phone"
+                  placeholder="05XXXXXXXX"
+                  required
+                />
+              </div>
+
+              <div class="mb-4">
+                <label class="form-label fw-semibold">Status</label>
+                <select class="form-select" [(ngModel)]="model.status" name="status">
+                  <option>Reserved</option>
+                  <option>Available</option>
+                </select>
+              </div>
+
+              <div class="d-grid gap-2 mt-4">
+                <button
+                  class="btn btn-primary action-btn"
+                  type="submit"
+                  [disabled]="!model.patient || !model.phone"
+                >
+                  {{ mode === 'add' ? 'Add Patient' : 'Save Changes' }}
+                </button>
+                <button class="btn btn-outline-secondary" type="button" (click)="goBack()">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="info-note small text-muted mt-3 text-center" *ngIf="mode === 'add'">
+          * The appointment will be reserved for <strong>{{ timeInfo }}</strong> (30 minutes).
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,91 @@
+.title {
+  font-weight: 700;
+  font-size: 1.4rem;
+  letter-spacing: 0.2px;
+  color: #0f172a;
+}
+.title .accent {
+  color: #007bff;
+}
+.title .muted {
+  color: #64748b;
+}
+
+.patient-card {
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease-in-out;
+}
+.patient-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.1);
+}
+
+.card-body {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+}
+
+.form-label {
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.form-control,
+.form-select {
+  border-radius: 10px;
+  border: 1px solid #dbe1ea;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.15);
+}
+
+.readonly {
+  background-color: #f8fafc;
+  font-weight: 600;
+  color: #334155;
+}
+
+.action-btn {
+  background: linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%);
+  font-weight: 700;
+  border: none;
+  padding: 10px 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(14, 165, 233, 0.25);
+}
+
+.back-btn {
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.info-note {
+  background: #e0f2fe;
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: inline-block;
+}
+
+@media (max-width: 576px) {
+  .patient-card {
+    border-radius: 12px;
+  }
+  .title {
+    font-size: 1.1rem;
+  }
+  .action-btn {
+    font-size: 0.9rem;
+  }
+}

@@ -1,0 +1,37 @@
+<div class="container my-4 reserved-page">
+  <div class="header-wrap">
+    <h5 class="title">Reserved — Day {{ day }}</h5>
+    <div class="sub text-muted">View reservation details.</div>
+  </div>
+
+  <div *ngIf="items.length; else empty" class="res-grid">
+    <div class="res-card" *ngFor="let s of items; trackBy: trackBySlot" (click)="goEdit(s)">
+      <div class="card-top">
+        <span class="time">{{ s.timeSlot }}</span>
+        <span class="type-chip reserved">Reserved</span>
+      </div>
+
+      <div class="card-mid">
+        <div class="patient">{{ s.ticket?.patient }}</div>
+        <div class="muted small">#{{ s.ticket?.id }} • {{ s.ticket?.phone }}</div>
+      </div>
+
+      <div class="card-bottom">
+        <button class="cta view" type="button">View Reservation</button>
+      </div>
+
+      <div class="shine"></div>
+    </div>
+  </div>
+
+  <ng-template #empty>
+    <div class="empty-state text-center mt-5">
+      <div class="emoji">📄</div>
+      <div class="lead fw-semibold">No reserved tickets for this day.</div>
+    </div>
+  </ng-template>
+
+  <div class="footer-actions mt-3">
+    <button class="btn-back" (click)="back()">↩ Back</button>
+  </div>
+</div>
