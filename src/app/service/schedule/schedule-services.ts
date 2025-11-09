@@ -6,6 +6,7 @@ export interface Doctor {
   id: number;
   name: string;
 }
+
 export interface Ticket {
   id: number;
   patient: string;
@@ -13,12 +14,14 @@ export interface Ticket {
   status: TicketStatus;
   timeSlot?: string;
 }
+
 export interface Clinic {
   id: number;
   name: string;
   doctors: Doctor[];
   schedule: Record<number, (Ticket | null)[]>;
 }
+
 export interface Slot {
   index: number;
   type: 'received' | 'notReceived' | 'empty';
@@ -27,6 +30,14 @@ export interface Slot {
   css: 'received' | 'not-received' | 'empty';
   shortTime?: string;
   title: string;
+}
+
+export interface DayStats {
+  reserved: number;
+  notReceived: number;
+  empty: number;
+  available: number;
+  total: number;
 }
 
 @Injectable({
@@ -78,11 +89,15 @@ export class ScheduleServices {
   ];
 
   days = Array.from({ length: 31 }, (_, i) => i + 1);
+
   private timeSlots: string[] = [];
 
   schedules: Record<number, Record<number, Record<number, (Ticket | null)[]>>> = {};
+
   slotCache: Record<number, Record<number, Record<number, Slot[]>>> = {};
-  countCache: Record<string, number> = {};
+
+  dayStatsCache: Record<number, Record<number, Record<number, DayStats>>> = {};
+
   timeDistCache: Record<string, { time: string; count: number }[]> = {};
 
   selectedClinicId = signal<number | null>(null);
@@ -93,10 +108,12 @@ export class ScheduleServices {
     this.timeSlots = this.generateTimeSlots();
   }
 
+  // ================== Time Slots ==================
+
   private generateTimeSlots(): string[] {
     const out: string[] = [];
-    const startHour = 8,
-      endHour = 20;
+    const startHour = 8;
+    const endHour = 20; // 8 AM -> 8 PM
     for (let h = startHour; h < endHour; h++) {
       for (let s = 0; s < this.SLOTS_PER_HOUR; s++) {
         const minutes = s === 0 ? '00' : '30';
@@ -108,16 +125,27 @@ export class ScheduleServices {
     return out;
   }
 
+  // ================== Init / Build ==================
+
   ensureClinicBuilt(clinicId: number) {
     if (this.schedules[clinicId]) return;
-    const clinic = this.clinics.find((c) => c.id === clinicId)!;
+
+    const clinic = this.clinics.find((c) => c.id === clinicId);
+    if (!clinic) return;
+
     this.schedules[clinicId] = {};
     this.slotCache[clinicId] = {};
+    this.dayStatsCache[clinicId] = {};
+
     for (const doc of clinic.doctors) {
       this.schedules[clinicId][doc.id] = {};
       this.slotCache[clinicId][doc.id] = {};
+      this.dayStatsCache[clinicId][doc.id] = {};
+
       for (const day of this.days) {
+        // dummy data for demo
         const arr: (Ticket | null)[] = new Array(this.TOTAL_SLOTS).fill(null);
+
         for (let idx = 0; idx < this.TOTAL_SLOTS && idx < this.timeSlots.length; idx++) {
           if (Math.random() < 0.55) {
             const received = Math.random() < 0.65;
@@ -130,16 +158,21 @@ export class ScheduleServices {
             };
           }
         }
+
         this.schedules[clinicId][doc.id][day] = arr;
         this.slotCache[clinicId][doc.id][day] = this.buildSlotsFromTickets(arr);
-        this.updateCaches(clinicId, doc.id, day);
+        this.updateDayStats(clinicId, doc.id, day);
+        this.updateTimeDistCache(clinicId, doc.id, day);
       }
     }
   }
 
+  // ================== Build helpers ==================
+
   private buildSlotsFromTickets(arr: (Ticket | null)[]): Slot[] {
     return arr.map((tk, index) => {
       const timeSlot = index < this.timeSlots.length ? this.timeSlots[index] : 'Extra Slot';
+
       if (!tk) {
         return {
           index,
@@ -151,7 +184,9 @@ export class ScheduleServices {
           ticket: null,
         };
       }
-      const type = tk.status === 'Received' ? 'received' : 'notReceived';
+
+      const type: Slot['type'] = tk.status === 'Received' ? 'received' : 'notReceived';
+
       return {
         index,
         type,
@@ -164,29 +199,100 @@ export class ScheduleServices {
     });
   }
 
-  private updateCaches(clinicId: number, doctorId: number, day: number) {
+  private updateDayStats(clinicId: number, doctorId: number, day: number) {
+    const slots = this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
+    let reserved = 0;
+    let notReceived = 0;
+    let empty = 0;
+
+    for (const s of slots) {
+      if (s.type === 'received') reserved++;
+      else if (s.type === 'notReceived') notReceived++;
+      else empty++;
+    }
+
+    const available = notReceived + empty;
+
+    if (!this.dayStatsCache[clinicId]) {
+      this.dayStatsCache[clinicId] = {};
+    }
+    if (!this.dayStatsCache[clinicId][doctorId]) {
+      this.dayStatsCache[clinicId][doctorId] = {};
+    }
+
+    this.dayStatsCache[clinicId][doctorId][day] = {
+      reserved,
+      notReceived,
+      empty,
+      available,
+      total: slots.length,
+    };
+  }
+
+  private updateTimeDistCache(clinicId: number, doctorId: number, day: number) {
     const key = `${clinicId}-${doctorId}-${day}`;
-    const slots = this.slotCache[clinicId][doctorId][day];
-    this.countCache[key] = slots.filter((s) => s.type !== 'empty').length;
+    const slots = this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
     const map = new Map<string, number>();
-    for (const s of slots) if (s.timeSlot) map.set(s.timeSlot, (map.get(s.timeSlot) ?? 0) + 1);
+
+    for (const s of slots) {
+      if (s.timeSlot) {
+        map.set(s.timeSlot, (map.get(s.timeSlot) ?? 0) + 1);
+      }
+    }
+
     this.timeDistCache[key] = Array.from(map.entries()).map(([time, count]) => ({ time, count }));
   }
+
+  // ================== Public APIs ==================
 
   slots(clinicId: number, doctorId: number, day: number): Slot[] {
     return this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
   }
-  totalCount(clinicId: number, doctorId: number, day: number): number {
-    return this.countCache[`${clinicId}-${doctorId}-${day}`] ?? 0;
+
+  /** precomputed stats: تستخدم في الجدول بدل حساب متكرر */
+  countsFor(clinicId: number, doctorId: number, day: number): DayStats {
+    const byClinic = this.dayStatsCache[clinicId];
+    const byDoctor = byClinic?.[doctorId];
+    const stats = byDoctor?.[day];
+
+    if (stats) return stats;
+
+    // fallback أمان في حالة عدم وجود كاش (ما يحصلش غالباً)
+    const slots = this.slots(clinicId, doctorId, day);
+    let reserved = 0;
+    let notReceived = 0;
+    let empty = 0;
+
+    for (const s of slots) {
+      if (s.type === 'received') reserved++;
+      else if (s.type === 'notReceived') notReceived++;
+      else empty++;
+    }
+
+    const available = notReceived + empty;
+
+    return {
+      reserved,
+      notReceived,
+      empty,
+      available,
+      total: slots.length,
+    };
   }
+
   timeDistribution(clinicId: number, doctorId: number, day: number) {
     return this.timeDistCache[`${clinicId}-${doctorId}-${day}`] ?? [];
   }
 
+  // ================== Mutations ==================
+
   addAtSlot(clinicId: number, doctorId: number, day: number, slotIndex: number, t: Ticket) {
     if (!this.schedules[clinicId]?.[doctorId]?.[day]) {
+      if (!this.schedules[clinicId]) this.schedules[clinicId] = {};
+      if (!this.schedules[clinicId][doctorId]) this.schedules[clinicId][doctorId] = {};
       this.schedules[clinicId][doctorId][day] = new Array(this.TOTAL_SLOTS).fill(null);
     }
+
     this.schedules[clinicId][doctorId][day][slotIndex] = t;
     this.refreshDay(clinicId, doctorId, day);
   }
@@ -201,35 +307,32 @@ export class ScheduleServices {
   }
 
   refreshDay(clinicId: number, doctorId: number, day: number) {
-    const tickets = this.schedules[clinicId][doctorId][day];
+    const tickets = this.schedules[clinicId]?.[doctorId]?.[day] ?? [];
+    if (!this.slotCache[clinicId]) this.slotCache[clinicId] = {};
+    if (!this.slotCache[clinicId][doctorId]) this.slotCache[clinicId][doctorId] = {};
+
     this.slotCache[clinicId][doctorId][day] = this.buildSlotsFromTickets(tickets);
-    this.updateCaches(clinicId, doctorId, day);
+
+    this.updateDayStats(clinicId, doctorId, day);
+    this.updateTimeDistCache(clinicId, doctorId, day);
   }
+
+  // ================== Helpers ==================
 
   getTimeSlotLabel(index: number) {
     return index < this.timeSlots.length ? this.timeSlots[index] : 'Extra Slot';
   }
+
   receivedSlots(clinicId: number, doctorId: number, day: number) {
     return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'received');
   }
+
   notReceivedSlots(clinicId: number, doctorId: number, day: number) {
     return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'notReceived');
   }
+
   emptySlots(clinicId: number, doctorId: number, day: number) {
     return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'empty');
-  }
-
-  countsFor(clinicId: number, doctorId: number, day: number) {
-    const arr = this.slots(clinicId, doctorId, day);
-    let received = 0,
-      notReceived = 0,
-      empty = 0;
-    for (const s of arr) {
-      if (s.type === 'received') received++;
-      else if (s.type === 'notReceived') notReceived++;
-      else empty++;
-    }
-    return { received, notReceived, empty, total: arr.length };
   }
 
   getTicketById(clinicId: number, doctorId: number, day: number, ticketId: number): Ticket | null {

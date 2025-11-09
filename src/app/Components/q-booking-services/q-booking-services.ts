@@ -143,16 +143,22 @@ export class QBookingServices implements OnInit {
     }
     return 1;
   }
-
-  get visibleDays(): { dayNum: number; dayName: string }[] {
+  get visibleDays(): { dayNum: number; label: string }[] {
     const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
     const start = this.startDayForView;
-    const result: { dayNum: number; dayName: string }[] = [];
+    const result: { dayNum: number; label: string }[] = [];
 
     for (let d = start; d <= daysInMonth; d++) {
       const date = new Date(this.viewYear, this.viewMonth, d);
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      result.push({ dayNum: d, dayName });
+
+      const label = date.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      result.push({ dayNum: d, label });
     }
 
     return result;
@@ -186,7 +192,7 @@ export class QBookingServices implements OnInit {
     return docs.filter((d) => {
       if (q) {
         const matchesName = d.name.toLowerCase().includes(q);
-        const matchesDay = this.visibleDays.some((day) => day.toString().includes(q));
+        const matchesDay = this.visibleDays.some((day) => day.label.toLowerCase().includes(q));
         const matchesStatus =
           q.includes('reserved') ||
           q.includes('حجز') ||
@@ -199,6 +205,7 @@ export class QBookingServices implements OnInit {
       if (this.filter.operatorId !== 'all' && this.filter.operatorId !== d.id) {
         return false;
       }
+
       if (this.filter.reservedChecked || this.filter.availableChecked) {
         const hasReserved =
           this.filter.reservedChecked && this.hasStatusForDoctor(clinicId, d.id, 'reserved');
@@ -229,23 +236,7 @@ export class QBookingServices implements OnInit {
   }
 
   counts(clinicId: number, doctorId: number, day: number) {
-    const slots = this.sch.slots(clinicId, doctorId, day);
-    let reserved = 0;
-    let notReceived = 0;
-    let empty = 0;
-
-    for (const s of slots) {
-      if (s.type === 'empty') {
-        empty++;
-      } else if (s.ticket?.status === 'Received') {
-        reserved++;
-      } else {
-        notReceived++;
-      }
-    }
-
-    const available = notReceived + empty;
-    return { reserved, available, total: slots.length };
+    return this.sch.countsFor(clinicId, doctorId, day);
   }
 
   ui = {
@@ -299,7 +290,7 @@ export class QBookingServices implements OnInit {
   }
 
   // ===== TrackBy =====
-  trackByDayNum = (_: number, day: number) => day;
+  trackByDay = (_: number, day: { dayNum: number }) => day.dayNum;
   trackByDoctor = (_: number, d: Doctor) => d.id;
   trackBySlot = (_: number, s: Slot) => s.index;
 }

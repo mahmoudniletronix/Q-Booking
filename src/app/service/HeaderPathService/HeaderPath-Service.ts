@@ -29,13 +29,16 @@ export class HeaderPathService {
   private updatePathFromRoute() {
     const route = this.getDeepestRoute(this.router.routerState.root);
     const snap = route?.snapshot;
-    const pageTitle: string | undefined = snap?.data?.['pageTitle'];
+    if (!snap) return;
 
-    const clinicIdParam = snap?.params?.['clinicId'];
-    const doctorIdParam = snap?.params?.['doctorId'];
-    const dayParam = snap?.params?.['day'];
+    const pageTitle: string | undefined = snap.data?.['pageTitle'];
+
+    const clinicIdParam = snap.params?.['clinicId'];
+    const doctorIdParam = snap.params?.['doctorId'];
+    const dayParam = snap.params?.['day'];
 
     const clinicId = clinicIdParam ? Number(clinicIdParam) : this.sch.selectedClinicId();
+
     const clinicName = clinicId ? this.sch.clinics.find((c) => c.id === clinicId)?.name : undefined;
 
     let doctorName: string | undefined;
@@ -47,19 +50,39 @@ export class HeaderPathService {
       doctorName = doctors.find((d) => d.id === dId)?.name;
     }
 
-    const parts: string[] = [];
-    if (pageTitle) parts.push(pageTitle);
-    if (clinicName) parts.push(clinicName);
-
-    const pathStr: string = snap?.routeConfig?.path ?? '';
+    const pathStr: string = snap.routeConfig?.path ?? '';
     const isPatientPage = pathStr.startsWith('patient/');
-    if (isPatientPage) {
-      if (doctorName) parts.push(doctorName);
-      if (dayParam) parts.push(`Day ${dayParam}`);
-    }
 
-    const extra = parts.join(' / ');
-    if (extra) this._extraPath.set(extra);
+    const parts: string[] = [];
+
+    if (clinicName) parts.push(clinicName);
+    if (doctorName) parts.push(doctorName);
+
+    if (isPatientPage) {
+      if (dayParam) {
+        const dayNum = Number(dayParam);
+        if (!Number.isNaN(dayNum)) {
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          const dateObj = new Date(currentYear, currentMonth, dayNum);
+          const dayLabel = dateObj.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: '2-digit',
+          });
+          parts.push(dayLabel);
+        }
+      }
+
+      const suffix = pageTitle ? ` (${pageTitle})` : '';
+      const extra = (parts.join(' / ') + suffix).trim();
+
+      if (extra) this._extraPath.set(extra);
+    } else {
+      if (pageTitle) parts.unshift(pageTitle);
+      const extra = parts.join(' / ');
+      if (extra) this._extraPath.set(extra);
+    }
   }
 
   private getDeepestRoute(route: any): any {
