@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { ScheduleServices, Slot } from '../../service/schedule-services';
+import { ScheduleServices, Slot } from '../../service/schedule/schedule-services';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 

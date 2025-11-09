@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { ScheduleServices, Ticket } from '../../service/schedule-services';
+import { ScheduleServices, Ticket } from '../../service/schedule/schedule-services';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -22,7 +22,11 @@ export class PatientForm {
   model: Ticket = { id: 0, patient: '', phone: '', status: 'Received' };
   timeInfo = '';
 
-  constructor(private route: ActivatedRoute, private router: Router, public sch: ScheduleServices) {
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    public sch: ScheduleServices
+  ) {
     this.route.params.subscribe((p) => {
       const path = this.route.snapshot.routeConfig?.path ?? '';
       if (path.startsWith('patient/add')) this.mode = 'add';

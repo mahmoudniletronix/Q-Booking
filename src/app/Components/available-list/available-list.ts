@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { ScheduleServices, Slot } from '../../service/schedule-services';
+import { ScheduleServices, Slot } from '../../service/schedule/schedule-services';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 
@@ -16,13 +16,16 @@ export class AvailableList {
   day!: number;
   slots: Slot[] = [];
 
-  constructor(private route: ActivatedRoute, private router: Router, public sch: ScheduleServices) {
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    public sch: ScheduleServices
+  ) {
     this.route.paramMap.subscribe((p) => {
       this.clinicId = +p.get('clinicId')!;
       this.doctorId = +p.get('doctorId')!;
       this.day = +p.get('day')!;
 
-      // فلترة فقط المواعيد الحقيقية بدون Extra Slot
       const all = this.sch
         .slots(this.clinicId, this.doctorId, this.day)
         .filter((s) => s.timeSlot && !s.timeSlot.toLowerCase().includes('extra'));
