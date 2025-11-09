@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { Doctor, ScheduleServices, Slot } from '../../service/schedule/schedule-services';
@@ -24,6 +24,28 @@ type OperatorId = 'all' | number;
 export class QBookingServices implements OnInit {
   constructor(public sch: ScheduleServices, private router: Router) {}
   private headerPath = inject(HeaderPathService);
+
+  @HostListener('window:keydown', ['$event'])
+  handleMonthKeyboardNav(event: KeyboardEvent) {
+    const target = event.target as HTMLElement;
+    const tag = (target.tagName || '').toLowerCase();
+
+    const isTextInput =
+      tag === 'input' ||
+      tag === 'textarea' ||
+      target.isContentEditable ||
+      target.getAttribute('role') === 'textbox';
+
+    if (isTextInput) {
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      this.nextMonth();
+    } else if (event.key === 'ArrowLeft') {
+      this.prevMonth();
+    }
+  }
 
   // ===== Branches =====
   branches: Branch[] = [

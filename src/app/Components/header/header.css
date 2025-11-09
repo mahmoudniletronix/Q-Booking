@@ -1,3 +1,88 @@
 .navbar {
   border-bottom: 2px solid #e3f2fd;
+  background-color: #ffffff;
+  z-index: 1050;
+}
+
+.header-main {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1050;
+  border-bottom: 2px solid #e3f2fd;
+  background-color: #ffffff;
+  padding-block: 0.75rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.header-container {
+  max-width: 100%;
+  padding-inline: 24px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+body,
+.page-content {
+  padding-top: 80px;
+}
+
+.q-booking-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+}
+
+.q-text {
+  color: #d32f2f;
+}
+
+.booking-text {
+  color: #6c757d;
+}
+
+.header-path {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.path-segment {
+  white-space: nowrap;
+}
+
+.path-separator {
+  color: #b0b0b0;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 576px) {
+  .header-container {
+    padding-inline: 14px;
+  }
+
+  .q-booking-title {
+    font-size: 1.3rem;
+  }
+
+  .header-path {
+    margin-top: 4px;
+    font-size: 0.9rem;
+  }
+
+  body,
+  .page-content {
+    padding-top: 70px;
+  }
 }

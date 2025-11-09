@@ -1,9 +1,10 @@
-<div class="container my-1">
-  <div class="card shadow-sm border-0">
-    <div class="card-body p-2">
-      <div class="row g-2 mb-2 align-items-center">
-        <div class="col-md-3 col-12">
-          <label class="form-label small mb-0">Branch</label>
+<div class="container schedule-page">
+  <div class="card schedule-card shadow-sm border-0">
+    <div class="card-body p-2 p-md-3">
+      <div class="row g-2 align-items-end filters-row flex-wrap">
+        <!-- Branch -->
+        <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
+          <label class="form-label small mb-1">Branch</label>
           <select
             class="form-select form-select-sm"
             [ngModel]="selectedBranchId"
@@ -17,8 +18,8 @@
         </div>
 
         <!-- Specialization -->
-        <div class="col-md-4 col-12">
-          <label class="form-label small mb-0">Specialization</label>
+        <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
+          <label class="form-label small mb-1">Specialization</label>
           <select
             class="form-select form-select-sm"
             [ngModel]="sch.selectedClinicId()"
@@ -32,51 +33,34 @@
         </div>
 
         <!-- Operator -->
-        <div class="col-md-3 col-12">
-          <label class="form-label small mb-0">Operator</label>
+        <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
+          <label class="form-label small mb-1">Operator</label>
           <select
             class="form-select form-select-sm"
             [ngModel]="filter.operatorId"
             (ngModelChange)="filter.operatorId = $event"
             [disabled]="!sch.selectedClinicId()"
           >
-            <option [ngValue]="'all'">-- All Operators --</option>
+            <option [ngValue]="'all'">All operators</option>
             <option *ngFor="let d of selectedClinicDoctors" [ngValue]="d.id">
               {{ d.name }}
             </option>
           </select>
         </div>
 
-        <div class="col-md-2 col-12">
-          <div
-            class="d-flex flex-wrap gap-2 mt-1 small text-muted legend-wrap justify-content-md-end"
-          >
-            <label class="form-check-label d-flex align-items-center gap-1">
-              <input
-                type="checkbox"
-                class="form-check-input"
-                [(ngModel)]="filter.reservedChecked"
-              />
-              <span class="legend legend-reserved"></span>
-              <span>Reserved</span>
-            </label>
-
-            <label class="form-check-label d-flex align-items-center gap-1">
-              <input
-                type="checkbox"
-                class="form-check-input"
-                [(ngModel)]="filter.availableChecked"
-              />
-              <span class="legend legend-available"></span>
-              <span>Available</span>
-            </label>
+        <!-- Search + Reset -->
+        <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label small mb-1 mb-0">Search</label>
+            <button
+              *ngIf="hasActiveFilters && sch.selectedClinicId()"
+              type="button"
+              class="btn btn-sm reset-link"
+              (click)="resetFilters()"
+            >
+              <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
           </div>
-        </div>
-      </div>
-
-      <div class="row g-2 mb-3 align-items-end filters-wrap" *ngIf="sch.selectedClinicId()">
-        <div class="col-md-6 col-12">
-          <label class="form-label small mb-1">Search</label>
           <div class="input-group input-group-sm">
             <span class="input-group-text">
               <i class="bi bi-search"></i>
@@ -86,52 +70,51 @@
               class="form-control"
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
-              placeholder="Search doctors, days, status..."
+              placeholder="Search by doctor name, day, or status..."
             />
           </div>
         </div>
-
-        <div class="col-md-6 col-12 text-md-end">
-          <div class="small text-muted mb-1">
-            Showing
-            <strong>{{ filteredClinicDoctors.length }}</strong>
-            of
-            <strong>{{ selectedClinicDoctors.length }}</strong>
-            doctors
-          </div>
-          <button
-            *ngIf="hasActiveFilters"
-            type="button"
-            class="btn btn-link btn-sm px-0 small reset-link"
-            (click)="resetFilters()"
-          >
-            Reset filters
-          </button>
-        </div>
       </div>
 
-      <!-- No specialization selected -->
-      <div *ngIf="!sch.selectedClinicId()" class="text-center text-muted py-4">
-        <div class="fs-6">Please choose a specialization to view the monthly schedule.</div>
+      <!-- Legend -->
+      <div class="row g-2 mb-2 align-items-center filters-row" *ngIf="sch.selectedClinicId()">
+        <div class="col-md-12 col-12">
+          <div class="legend-wrap">
+            <label class="legend-item">
+              <input type="checkbox" [(ngModel)]="filter.reservedChecked" />
+              <span class="legend-box reserved"></span>
+              <span>Reserved</span>
+            </label>
+
+            <label class="legend-item">
+              <input type="checkbox" [(ngModel)]="filter.availableChecked" />
+              <span class="legend-box available"></span>
+              <span>Available</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- ===== Schedule Table ===== -->
       <div *ngIf="sch.selectedClinicId() as clinicId" class="schedule-wrap">
-        <div class="d-flex justify-content-between align-items-center mb-2 month-nav">
-          <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
-            <i class="bi bi-chevron-left"></i>
-          </button>
+        <div class="table-responsive rounded-2 border schedule-viewport">
+          <div class="month-nav" *ngIf="sch.selectedClinicId()">
+            <!-- Prev -->
+            <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
+              <i class="bi bi-chevron-left"></i>
+            </button>
 
-          <div class="month-label fw-semibold">
-            {{ monthLabel }}
+            <!-- Month label (center) -->
+            <div class="month-label fw-semibold">
+              {{ monthLabel }}
+            </div>
+
+            <!-- Next -->
+            <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="nextMonth()">
+              <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
 
-          <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="nextMonth()">
-            <i class="bi bi-chevron-right"></i>
-          </button>
-        </div>
-
-        <div class="table-responsive rounded-2 border schedule-viewport">
           <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
             <thead class="table-light sticky-top">
               <tr>
@@ -140,8 +123,10 @@
                   *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
                   class="text-center doctor-header sticky-top"
                 >
-                  {{ d.name }}
-                  <div class="small text-muted">(30 min/slot)</div>
+                  <div class="doctor-name">
+                    {{ d.name }}
+                  </div>
+                  <div class="doctor-meta small text-muted">30 min / slot</div>
                 </th>
               </tr>
             </thead>
@@ -188,7 +173,7 @@
 
               <tr *ngIf="filteredClinicDoctors.length === 0">
                 <td colspan="99" class="text-center small text-muted py-3">
-                  No doctors match current search/filter.
+                  No doctors match the current filters. Try adjusting search or operator/legend.
                 </td>
               </tr>
             </tbody>

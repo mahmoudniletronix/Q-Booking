@@ -1,35 +1,15 @@
 /* ========================================
-   CSS Variables - Color Palette
+   Layout & Table
    ======================================== */
-:host {
-  --color-reserved-bg: #ffe6ea;
-  --color-reserved-text: #e74c3c;
-  --color-available-bg: #e7f7eb;
-  --color-available-text: #1c9452;
-  --color-white: #fff;
-  --color-text-muted: #333;
-  --color-accent: #007bff;
-
-  --spacing-xs: 2px;
-  --spacing-sm: 4px;
-  --spacing-md: 6px;
-  --spacing-lg: 14px;
-
-  --font-size-sm: 0.6rem;
-  --font-size-md: 0.68rem;
-  --font-size-base: 0.8rem;
-  --font-size-lg: 0.85rem;
-  --font-size-xl: 0.95rem;
-
-  --z-sticky-header: 5;
-  --z-sticky-col: 6;
+.schedule-page {
+  max-width: 1800px;
+}
+.card-body {
+  margin-top: 100px;
 }
 
-/* ========================================
-   Schedule Table Container
-   ======================================== */
 .schedule-wrap {
-  margin-top: var(--spacing-sm);
+  margin-top: 4px;
 }
 
 .schedule-viewport {
@@ -38,29 +18,26 @@
 }
 
 .schedule-table {
-  font-size: var(--font-size-base);
+  font-size: 0.8rem;
+  font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   white-space: nowrap;
 }
 
-/* ========================================
-   Table Sticky Elements
-   ======================================== */
+/* Sticky */
 .sticky-top {
   position: sticky;
   top: 0;
-  z-index: var(--z-sticky-header);
+  z-index: 5;
 }
 
 .sticky-col {
   position: sticky;
   left: 0;
-  z-index: var(--z-sticky-col);
-  background: var(--color-white);
+  z-index: 6;
+  background: #ffffff;
 }
 
-/* ========================================
-   Table Columns & Cells
-   ======================================== */
+/* Columns & Cells */
 .first-col {
   min-width: 52px;
   font-weight: 600;
@@ -71,7 +48,7 @@
 }
 
 .schedule-cell {
-  padding: var(--spacing-sm) var(--spacing-xs);
+  padding: 4px 2px;
 }
 
 /* ========================================
@@ -80,18 +57,18 @@
 .stats-row {
   display: flex;
   flex-direction: row;
-  gap: var(--spacing-xs);
+  gap: 2px;
   align-items: center;
 }
 
 .pill {
   border: none;
   border-radius: 999px;
-  padding: var(--spacing-xs) 10px;
-  font-size: var(--font-size-md);
+  padding: 2px 10px;
+  font-size: 0.68rem;
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-sm);
+  gap: 4px;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   width: 100%;
@@ -99,13 +76,13 @@
 }
 
 .pill-reserved {
-  background-color: var(--color-reserved-bg);
-  color: var(--color-reserved-text);
+  background-color: #ffe6ea;
+  color: #e74c3c;
 }
 
 .pill-available {
-  background-color: var(--color-available-bg);
-  color: var(--color-available-text);
+  background-color: #e7f7eb;
+  color: #1c9452;
 }
 
 .pill:hover {
@@ -114,68 +91,123 @@
 }
 
 /* ========================================
+   Filters Row
+   ======================================== */
+.filters-row {
+  margin-bottom: 8px;
+}
+
+.filters-row label {
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.filters-row .form-select,
+.filters-row .form-control {
+  min-height: 32px;
+  font-size: 0.8rem;
+}
+
+/* ========================================
    Legend Section
    ======================================== */
 .legend-wrap {
   display: flex;
   align-items: center;
-  gap: var(--spacing-lg);
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 2px;
 }
 
 .legend-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-md);
-  font-size: var(--font-size-lg);
-  color: var(--color-text-muted);
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #333333;
   cursor: pointer;
 }
 
 .legend-item input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-accent);
+  width: 14px;
+  height: 14px;
+  accent-color: #007bff;
   cursor: pointer;
 }
 
-.legend-square,
-.legend-wrap .legend {
+.legend-box {
   width: 14px;
   height: 14px;
   border-radius: 3px;
   display: inline-block;
 }
 
-.legend-reserved,
-.legend-square.reserved {
-  background-color: var(--color-reserved-text);
+.legend-box.reserved {
+  background-color: #e74c3c;
 }
 
-.legend-available,
-.legend-square.available {
-  background-color: var(--color-available-text);
+.legend-box.available {
+  background-color: #1c9452;
 }
 
 /* ========================================
    Month Navigation
    ======================================== */
-.month-nav .month-label {
-  font-size: var(--font-size-xl);
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f1f1;
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+
+.month-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.95rem;
 }
 
 .nav-arrow {
-  padding-inline: 8px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.nav-arrow i {
+  font-size: 0.9rem;
 }
 
 /* ========================================
-   Utility Classes
+   Reset Link
    ======================================== */
 .reset-link {
-  text-decoration: underline;
+  border: none;
+  background: #e9f5ff;
+  color: #007bff;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+}
+
+.reset-link:hover {
+  background: #007bff;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+}
+
+.reset-link i {
+  margin-right: 4px;
+  font-size: 0.9rem;
 }
 
 /* ========================================
-   Responsive Design - Mobile
+   Responsive
    ======================================== */
 @media (max-width: 768px) {
   .doctor-header {
@@ -187,7 +219,11 @@
   }
 
   .pill {
-    font-size: var(--font-size-sm);
-    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 0.6rem;
+    padding: 2px 6px;
+  }
+
+  .filters-row {
+    margin-bottom: 6px;
   }
 }
