@@ -132,9 +132,9 @@
             </thead>
 
             <tbody>
-              <tr *ngFor="let day of visibleDays; trackBy: trackByDay">
+              <tr *ngFor="let day of visibleDays; trackByDayNum">
                 <th class="first-col sticky-col text-center">
-                  {{ day }}
+                  {{ day.dayName }}
                 </th>
 
                 <td
@@ -145,12 +145,12 @@
                     <button
                       *ngIf="filter.reservedChecked"
                       class="pill pill-reserved"
-                      [routerLink]="['/patient/received', clinicId, d.id, day]"
-                      [title]="counts(clinicId, d.id, day).reserved + ' reserved'"
+                      [routerLink]="['/patient/received', clinicId, d.id, day.dayNum]"
+                      [title]="counts(clinicId, d.id, day.dayNum).reserved + ' reserved'"
                       type="button"
                     >
                       <span class="num">
-                        {{ counts(clinicId, d.id, day).reserved }}
+                        {{ counts(clinicId, d.id, day.dayNum).reserved }}
                       </span>
                       <span class="label">Reserved</span>
                     </button>
@@ -158,12 +158,12 @@
                     <button
                       *ngIf="filter.availableChecked"
                       class="pill pill-available"
-                      [routerLink]="['/patient/available', clinicId, d.id, day]"
-                      [title]="counts(clinicId, d.id, day).available + ' available'"
+                      [routerLink]="['/patient/available', clinicId, d.id, day.dayNum]"
+                      [title]="counts(clinicId, d.id, day.dayNum).available + ' available'"
                       type="button"
                     >
                       <span class="num">
-                        {{ counts(clinicId, d.id, day).available }}
+                        {{ counts(clinicId, d.id, day.dayNum).available }}
                       </span>
                       <span class="label">Available</span>
                     </button>

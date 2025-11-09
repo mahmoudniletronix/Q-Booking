@@ -64,22 +64,19 @@ export class QBookingServices implements OnInit {
   selectedBranchId: number | null = null;
   selectedBranchPath = '';
 
-  // ===== Filters State =====
   filter = {
-    searchQuery: '', // Global search: doctors, days, status
+    searchQuery: '',
     operatorId: 'all' as OperatorId,
     reservedChecked: true,
     availableChecked: true,
   };
 
-  // ===== Month View State =====
   private readonly today = new Date();
   viewYear = this.today.getFullYear();
   viewMonth = this.today.getMonth();
 
   ngOnInit(): void {}
 
-  // ==== Branch change ====
   onBranchChange(id: number | null) {
     this.selectedBranchId = id;
     const br = this.branches.find((b) => b.id === id) || null;
@@ -102,7 +99,6 @@ export class QBookingServices implements OnInit {
     this.headerPath.setExtraPath(extra);
   }
 
-  // ===== Filters helpers =====
   get hasActiveFilters(): boolean {
     return (
       (this.filter.searchQuery && this.filter.searchQuery.trim().length > 0) ||
@@ -120,7 +116,6 @@ export class QBookingServices implements OnInit {
     };
   }
 
-  // ===== Selected clinic helpers =====
   get selectedClinic() {
     const id = this.sch.selectedClinicId();
     return id ? this.sch.clinics.find((c) => c.id === id) ?? null : null;
@@ -134,7 +129,6 @@ export class QBookingServices implements OnInit {
     return this.selectedClinic?.doctors ?? [];
   }
 
-  // ===== Month label & visible days (من أول اليوم الحالي لو نفس الشهر) =====
   get monthLabel(): string {
     const date = new Date(this.viewYear, this.viewMonth, 1);
     return date.toLocaleString('en-US', {
@@ -144,25 +138,26 @@ export class QBookingServices implements OnInit {
   }
 
   private get startDayForView(): number {
-    // لو الشهر المعروض هو الشهر الحالي: نبدأ من اليوم الحالي
     if (this.viewYear === this.today.getFullYear() && this.viewMonth === this.today.getMonth()) {
       return this.today.getDate();
     }
-    // غير كده نبدأ من 1
     return 1;
   }
 
-  get visibleDays(): number[] {
+  get visibleDays(): { dayNum: number; dayName: string }[] {
     const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
     const start = this.startDayForView;
-    const result: number[] = [];
+    const result: { dayNum: number; dayName: string }[] = [];
+
     for (let d = start; d <= daysInMonth; d++) {
-      result.push(d);
+      const date = new Date(this.viewYear, this.viewMonth, d);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      result.push({ dayNum: d, dayName });
     }
+
     return result;
   }
 
-  // التنقل بين الشهور
   prevMonth() {
     if (this.viewMonth === 0) {
       this.viewMonth = 11;
@@ -181,7 +176,6 @@ export class QBookingServices implements OnInit {
     }
   }
 
-  // ===== Filtered doctors (global search + operator + status checkboxes) =====
   get filteredClinicDoctors(): Doctor[] {
     const docs = this.selectedClinicDoctors;
     const clinicId = this.sch.selectedClinicId();
@@ -190,7 +184,6 @@ export class QBookingServices implements OnInit {
     const q = this.filter.searchQuery.trim().toLowerCase();
 
     return docs.filter((d) => {
-      // Global search: doctor name, or any day number, or status
       if (q) {
         const matchesName = d.name.toLowerCase().includes(q);
         const matchesDay = this.visibleDays.some((day) => day.toString().includes(q));
@@ -203,12 +196,9 @@ export class QBookingServices implements OnInit {
         if (!matchesName && !matchesDay && !matchesStatus) return false;
       }
 
-      // operator filter
       if (this.filter.operatorId !== 'all' && this.filter.operatorId !== d.id) {
         return false;
       }
-
-      // status filter (checkboxes)
       if (this.filter.reservedChecked || this.filter.availableChecked) {
         const hasReserved =
           this.filter.reservedChecked && this.hasStatusForDoctor(clinicId, d.id, 'reserved');
@@ -221,7 +211,6 @@ export class QBookingServices implements OnInit {
         }
       }
 
-      // لو الاتنين unchecked → مفيش فلتر Status
       return true;
     });
   }
@@ -232,14 +221,13 @@ export class QBookingServices implements OnInit {
     status: 'reserved' | 'available'
   ): boolean {
     for (const day of this.visibleDays) {
-      const c = this.counts(clinicId, doctorId, day);
+      const c = this.counts(clinicId, doctorId, day.dayNum);
       if (status === 'reserved' && c.reserved > 0) return true;
       if (status === 'available' && c.available > 0) return true;
     }
     return false;
   }
 
-  // ===== Stats (نفس اللوجيك القديم) =====
   counts(clinicId: number, doctorId: number, day: number) {
     const slots = this.sch.slots(clinicId, doctorId, day);
     let reserved = 0;
@@ -260,7 +248,6 @@ export class QBookingServices implements OnInit {
     return { reserved, available, total: slots.length };
   }
 
-  // ===== Overlay helpers (محتفظين بيها لو احتجتها) =====
   ui = {
     showEmptyPicker: false,
     showReceivedList: false,
@@ -312,7 +299,7 @@ export class QBookingServices implements OnInit {
   }
 
   // ===== TrackBy =====
-  trackByDay = (_: number, day: number) => day;
+  trackByDayNum = (_: number, day: number) => day;
   trackByDoctor = (_: number, d: Doctor) => d.id;
   trackBySlot = (_: number, s: Slot) => s.index;
 }
