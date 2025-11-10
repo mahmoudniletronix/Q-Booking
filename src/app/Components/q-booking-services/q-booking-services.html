@@ -39,7 +39,7 @@
           <select
             class="form-select form-select-sm"
             [ngModel]="filter.operatorId"
-            (ngModelChange)="filter.operatorId = $event"
+            (ngModelChange)="onOperatorChange($event)"
             [disabled]="!sch.selectedClinicId()"
           >
             <option [ngValue]="'all'">All operators</option>
@@ -75,7 +75,7 @@
               class="form-control"
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
-              placeholder="Search by doctor name, day, or status..."
+              placeholder="Search by doctor, day, or status..."
             />
           </div>
         </div>
@@ -102,8 +102,7 @@
 
       <!-- Schedule Table -->
       <div *ngIf="sch.selectedClinicId() as clinicId" class="schedule-wrap">
-        <div class="table-responsive rounded-2 border schedule-viewport">
-          <!-- Month navigation -->
+        <div class="table-responsive rounded-3 border schedule-viewport">
           <div class="month-nav">
             <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
               <i class="bi bi-chevron-left"></i>
@@ -121,15 +120,12 @@
           <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
             <thead class="table-light sticky-top">
               <tr>
-                <!-- Day column -->
                 <th class="first-col sticky-col text-center">Day</th>
-
-                <!-- Doctors -->
                 <th
                   *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
                   class="text-center doctor-header sticky-top"
                 >
-                  <div class="doctor-name">
+                  <div class="doctor-name" [title]="d.name">
                     {{ d.name }}
                   </div>
                   <div class="doctor-meta small text-muted">30 min / slot</div>
@@ -147,43 +143,51 @@
                   *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
                   class="text-center schedule-cell"
                 >
-                  <div class="stats-row" *ngIf="counts(clinicId, d.id, day.dayNum) as c">
-                    <button
-                      *ngIf="filter.reservedChecked"
-                      class="pill pill-reserved"
-                      [routerLink]="['/patient/received', clinicId, d.id, day.dayNum]"
-                      [title]="c.reserved + ' reserved'"
-                      type="button"
-                    >
-                      <span class="num">{{ c.reserved }}</span>
-                      <span class="label">Reserved</span>
-                    </button>
+                  <ng-container *ngIf="counts(clinicId, d.id, day) as c">
+                    <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
+                      <button
+                        *ngIf="filter.reservedChecked"
+                        class="pill pill-reserved"
+                        type="button"
+                        [title]="c.reserved + ' reserved'"
+                        (click)="onReservedClick(clinicId, d, day)"
+                      >
+                        <span class="num">{{ c.reserved }}</span>
+                        <span class="label">Reserved</span>
+                      </button>
 
-                    <!-- Available -->
-                    <button
-                      *ngIf="filter.availableChecked"
-                      class="pill pill-available"
-                      [routerLink]="['/patient/available', clinicId, d.id, day.dayNum]"
-                      [title]="'Available: ' + c.available"
-                      type="button"
-                    >
-                      <span class="num">{{ c.available }}</span>
-                      <span class="label">Available</span>
-                    </button>
-                  </div>
+                      <button
+                        *ngIf="filter.availableChecked"
+                        class="pill pill-available"
+                        type="button"
+                        [title]="'Available: ' + c.available"
+                        (click)="onAvailableClick(clinicId, d, day)"
+                      >
+                        <span class="num">{{ c.available }}</span>
+                        <span class="label">Available</span>
+                      </button>
+                    </div>
+                  </ng-container>
                 </td>
               </tr>
 
-              <!-- No doctors -->
               <tr *ngIf="filteredClinicDoctors.length === 0">
                 <td colspan="99" class="text-center small text-muted py-3">
-                  No doctors match the current filters. Try adjusting search or operator/legend.
+                  No doctors match the current filters. Try adjusting search, operator, or legend.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
+
+      <div *ngIf="!sch.selectedClinicId()" class="text-center text-muted py-4 small">
+        Select branch & specialization to view the schedule.
+      </div>
     </div>
   </div>
 </div>
+
+<ng-template #emptyCell>
+  <div class="empty-cell">-</div>
+</ng-template>

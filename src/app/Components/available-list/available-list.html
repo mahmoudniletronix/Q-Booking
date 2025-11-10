@@ -1,35 +1,154 @@
-<div class="container my-4 available-page">
-  <div class="header-wrap">
-    <h5 class="title">Available — Day {{ day }}</h5>
-    <div class="sub text-muted">Pick a time to add a new reservation.</div>
-  </div>
+<div class="available-page">
+  <div class="container">
+    <!-- Header -->
+    <div class="page-header d-flex align-items-center justify-content-between mb-4 flex-wrap">
+      <button class="btn-back" (click)="back()">↩ Back</button>
+      <div class="text-center flex-grow-1">
+        <h4 class="title mb-1">Available — {{ dayName }} {{ day }}</h4>
+        <div class="sub">Pick a time slot and complete the reservation details.</div>
+      </div>
+    </div>
 
-  <div *ngIf="slots.length; else noSlots" class="avail-grid">
-    <div class="avail-card" *ngFor="let s of slots; trackBy: trackBySlot" (click)="onSlotClick(s)">
-      <div class="card-top">
-        <span class="time">{{ s.timeSlot }}</span>
-        <span class="type-chip available">Available</span>
+    <div class="row justify-content-center align-items-start layout-row">
+      <!-- LEFT: Slots (col-8) -->
+      <div class="col-lg-8 col-md-7 mb-4 mb-md-0">
+        <div class="avail-grid" *ngIf="slots.length; else noSlots">
+          <div
+            class="avail-card"
+            *ngFor="let s of slots; trackBy: trackBySlot"
+            (click)="!isReserved(s) && onSlotClick(s)"
+            [class.active]="selectedSlot?.index === s.index"
+            [class.reserved]="isReserved(s)"
+          >
+            <div class="card-top">
+              <span class="time">{{ s.timeSlot }}</span>
+
+              <span class="type-chip" [ngClass]="isReserved(s) ? 'reserved' : 'available'">
+                {{ isReserved(s) ? 'Reserved' : 'Available' }}
+              </span>
+            </div>
+
+            <div class="card-bottom">
+              <!-- لو لسه فاضي -->
+              <ng-container *ngIf="!isReserved(s); else reservedInfo">
+                <button class="cta add" type="button">
+                  <span class="ico">➕</span>
+                  Select
+                </button>
+              </ng-container>
+
+              <!-- لو محجوز -->
+              <ng-template #reservedInfo>
+                <div class="reserved-label">
+                  <span class="ico">✅</span>
+                  {{ s.ticket?.patient || 'Booked' }}
+                </div>
+              </ng-template>
+            </div>
+
+            <div class="shine"></div>
+          </div>
+        </div>
+
+        <ng-template #noSlots>
+          <div class="empty-state text-center mt-3">
+            <div class="emoji">🗓️</div>
+            <div class="lead fw-semibold">No available slots for this day.</div>
+          </div>
+        </ng-template>
       </div>
 
-      <div class="card-bottom">
-        <button class="cta add" type="button">
-          <span class="ico">➕</span>
-          Add Reservation
-        </button>
+      <!-- RIGHT: Details (col-4) -->
+      <div class="col-lg-4 col-md-5">
+        <div class="patient-form-page" *ngIf="selectedSlot; else detailsHint">
+          <div class="patient-card shadow-lg border-0">
+            <div class="card-body p-3 p-md-4">
+              <div class="form-header mb-3">
+                <h5 class="form-title mb-1">
+                  <span class="accent">
+                    {{ mode === 'add' ? 'Add New Patient' : 'Edit Patient' }}
+                  </span>
+                  <span class="muted">— {{ day }}</span>
+                </h5>
+                <div class="slot-label">
+                  Slot:
+                  <strong>{{ timeInfo }}</strong>
+                  <span class="chip-30">30 min</span>
+                </div>
+              </div>
+
+              <form (ngSubmit)="save()" novalidate>
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Patient Name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    [(ngModel)]="model.patient"
+                    name="patient"
+                    placeholder="Enter full name"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Phone</label>
+                  <input
+                    type="tel"
+                    class="form-control"
+                    [(ngModel)]="model.phone"
+                    name="phone"
+                    placeholder="05XXXXXXXX"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label fw-semibold">Status</label>
+                  <select class="form-select" [(ngModel)]="model.status" name="status">
+                    <!-- متماشية مع TicketStatus: 'Received' | 'Not Received' -->
+                    <option value="Received">Received</option>
+                    <option value="Not Received">Not Received</option>
+                  </select>
+                </div>
+
+                <div class="d-grid gap-2 mt-4">
+                  <button
+                    class="btn btn-primary action-btn"
+                    type="submit"
+                    [disabled]="!model.patient || !model.phone"
+                  >
+                    {{ mode === 'add' ? 'Add Patient' : 'Save Changes' }}
+                  </button>
+                  <button
+                    class="btn btn-outline-secondary"
+                    type="button"
+                    (click)="clearSelection()"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+
+              <div class="info-note small text-muted mt-3" *ngIf="mode === 'add'">
+                * The appointment will be reserved at
+                <strong>{{ timeInfo }}</strong>
+                (30 minutes).
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ng-template #detailsHint>
+          <div class="details-placeholder text-center text-muted">
+            <div class="emoji">👈</div>
+            <div class="mt-2">
+              Select an available time slot on the left
+              <br />
+              to add patient details here.
+            </div>
+          </div>
+        </ng-template>
       </div>
-
-      <div class="shine"></div>
     </div>
-  </div>
-
-  <ng-template #noSlots>
-    <div class="empty-state text-center mt-5">
-      <div class="emoji">🗓️</div>
-      <div class="lead fw-semibold">No available slots for this day.</div>
-    </div>
-  </ng-template>
-
-  <div class="footer-actions mt-3">
-    <button class="btn-back" (click)="back()">↩ Back</button>
   </div>
 </div>

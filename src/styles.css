@@ -1,20 +1,18 @@
-@font-face {
-  font-family: 'DigitalSansEF';
-  src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-html,
-body {
-  font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-}
-
+/* ==============================
+   FONT IMPORTS
+   ============================== */
 @font-face {
   font-family: 'DigitalSansEF';
   src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DigitalSansEF';
+  src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
+  font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
@@ -27,11 +25,47 @@ body {
   font-display: swap;
 }
 
-html {
+/* ==============================
+   GLOBAL STYLING
+   ============================== */
+html,
+body {
+  font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+  font-weight: 400;
+  margin: 0;
+  padding: 0;
+  color: #111827;
+  background: linear-gradient(
+    0deg,
+    rgba(85, 75, 70, 1) 0%,
+    rgba(242, 100, 38, 1) 50%,
+    rgba(255, 255, 255, 1) 100%
+  ) !important;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Bootstrap variable override */
 :root {
   --bs-font-sans-serif: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ==============================
+   LAYOUT STABILITY
+   ============================== */
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+.footer {
+  flex-shrink: 0;
 }

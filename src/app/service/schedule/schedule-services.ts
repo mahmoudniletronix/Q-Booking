@@ -1,4 +1,7 @@
 import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environment/environment';
+import { forkJoin } from 'rxjs';
 
 export type TicketStatus = 'Received' | 'Not Received';
 
@@ -40,303 +43,395 @@ export interface DayStats {
   total: number;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+export interface Branch {
+  id: number;
+  name: string;
+  arabicName: string;
+  englishName: string;
+  ipAddress: string;
+  isUpdatesAvailable: boolean;
+  lastUpdated: string;
+  path: string;
+}
+
+interface OperatorDetail {
+  operatorId: number;
+  name: string;
+  durationWaiting: number;
+  reservedTickets: number;
+  availableTickets: number;
+  weekDays: string[];
+  startTime: string;
+  endTime: string;
+}
+
+@Injectable({ providedIn: 'root' })
 export class ScheduleServices {
-  readonly TOTAL_SLOTS = 55;
-  readonly SLOTS_PER_HOUR = 2;
+  private readonly dayNamesEn: Record<string, string> = {
+    su: 'Sunday',
+    mo: 'Monday',
+    tu: 'Tuesday',
+    we: 'Wednesday',
+    th: 'Thursday',
+    fr: 'Friday',
+    sa: 'Saturday',
+  };
 
-  clinics: Clinic[] = [
-    {
-      id: 1,
-      name: 'Gynecology and Obstetrics Clinic',
-      doctors: [
-        { id: 101, name: 'Dr. Ali Khalil' },
-        { id: 102, name: 'Dr. Sara Ahmed' },
-        { id: 103, name: 'Dr. Mohamad Ali' },
-        { id: 104, name: 'Dr. Hossam Nasr' },
-        { id: 105, name: 'Dr. Laila Fathy' },
-      ],
-      schedule: {},
-    },
-    {
-      id: 2,
-      name: 'Cardiology Clinic',
-      doctors: [
-        { id: 201, name: 'Dr. Hossam Nasr' },
-        { id: 202, name: 'Dr. Laila Fathy' },
-        { id: 203, name: 'Dr. Mostafa Gamal' },
-        { id: 204, name: 'Dr. Nancy Adel' },
-        { id: 205, name: 'Dr. Mostafa Gamal' },
-        { id: 206, name: 'Dr. Nancy Adel' },
-      ],
-      schedule: {},
-    },
-    {
-      id: 3,
-      name: 'Orthopedic Clinic',
-      doctors: [
-        { id: 301, name: 'Dr. Mostafa Gamal' },
-        { id: 302, name: 'Dr. Nancy Adel' },
-        { id: 303, name: 'Dr. Mostafa Gamal' },
-        { id: 304, name: 'Dr. Nancy Adel' },
-        { id: 305, name: 'Dr. Mostafa Gamal' },
-        { id: 306, name: 'Dr. Nancy Adel' },
-      ],
-      schedule: {},
-    },
-  ];
+  private readonly dayNamesAr: Record<string, string> = {
+    su: 'الأحد',
+    mo: 'الإثنين',
+    tu: 'الثلاثاء',
+    we: 'الأربعاء',
+    th: 'الخميس',
+    fr: 'الجمعة',
+    sa: 'السبت',
+  };
 
-  days = Array.from({ length: 31 }, (_, i) => i + 1);
+  getDayNameFor(
+    clinicId: number,
+    doctorId: number,
+    day: string | number | Date,
+    lang: 'en' | 'ar' = 'en'
+  ): string {
+    const details = this.operatorDetailsByClinic[clinicId] || [];
 
-  private timeSlots: string[] = [];
+    let date: Date;
+    if (day instanceof Date) {
+      date = day;
+    } else if (typeof day === 'string') {
+      date = new Date(day);
+    } else {
+      const now = new Date();
+      date = new Date(now.getFullYear(), now.getMonth(), day);
+    }
 
-  schedules: Record<number, Record<number, Record<number, (Ticket | null)[]>>> = {};
+    const dayCode = this.getDayCode(date);
 
-  slotCache: Record<number, Record<number, Record<number, Slot[]>>> = {};
+    const match = details.find((d) => d.operatorId === doctorId && d.weekDays.includes(dayCode));
 
-  dayStatsCache: Record<number, Record<number, Record<number, DayStats>>> = {};
+    const dict = lang === 'ar' ? this.dayNamesAr : this.dayNamesEn;
 
-  timeDistCache: Record<string, { time: string; count: number }[]> = {};
+    if (match && dict[dayCode]) return dict[dayCode];
 
+    return dict[dayCode] || '';
+  }
+
+  // ===== Branches =====
+  private readonly _branches = signal<Branch[]>([]);
+  private readonly _branchesLoading = signal<boolean>(false);
+
+  branches = this._branches;
+  branchesLoading = this._branchesLoading;
+
+  // ===== Specializations =====
+  clinics: Clinic[] = [];
+
+  // Operators + details cache
+  private operatorsByClinic: Record<number, Doctor[]> = {};
+  private operatorDetailsByClinic: Record<number, OperatorDetail[]> = {};
+
+  // Selected
   selectedClinicId = signal<number | null>(null);
   selectedDoctor = signal<Doctor | null>(null);
-  selectedDay = signal<number | null>(null);
 
-  constructor() {
-    this.timeSlots = this.generateTimeSlots();
+  constructor(private http: HttpClient) {
+    this.loadBranches();
+    this.loadSpecializations();
   }
 
-  // ================== Time Slots ==================
+  // ================== Branches ==================
 
-  private generateTimeSlots(): string[] {
-    const out: string[] = [];
-    const startHour = 8;
-    const endHour = 20; // 8 AM -> 8 PM
-    for (let h = startHour; h < endHour; h++) {
-      for (let s = 0; s < this.SLOTS_PER_HOUR; s++) {
-        const minutes = s === 0 ? '00' : '30';
-        const period = h < 12 ? 'AM' : 'PM';
-        const displayHour = h > 12 ? h - 12 : h;
-        out.push(`${displayHour}:${minutes} ${period}`);
-      }
-    }
-    return out;
-  }
+  private loadBranches(): void {
+    this._branchesLoading.set(true);
 
-  // ================== Init / Build ==================
+    this.http.get<{ items: any[] }>(`${environment.baseUrl}/branches`).subscribe({
+      next: (res) => {
+        const items = res?.items || [];
 
-  ensureClinicBuilt(clinicId: number) {
-    if (this.schedules[clinicId]) return;
+        const mapped: Branch[] = items.map((item) => {
+          const slug =
+            (item.englishName || '')
+              .toString()
+              .trim()
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9\-]/g, '') || `branch-${item.id}`;
 
-    const clinic = this.clinics.find((c) => c.id === clinicId);
-    if (!clinic) return;
+          return {
+            id: item.id,
+            name: item.arabicName || item.englishName,
+            arabicName: item.arabicName,
+            englishName: item.englishName,
+            ipAddress: item.ipAddress,
+            isUpdatesAvailable: item.isUpdatesAvailable,
+            lastUpdated: item.lastUpdated,
+            path: `/branches/${slug}`,
+          };
+        });
 
-    this.schedules[clinicId] = {};
-    this.slotCache[clinicId] = {};
-    this.dayStatsCache[clinicId] = {};
-
-    for (const doc of clinic.doctors) {
-      this.schedules[clinicId][doc.id] = {};
-      this.slotCache[clinicId][doc.id] = {};
-      this.dayStatsCache[clinicId][doc.id] = {};
-
-      for (const day of this.days) {
-        // dummy data for demo
-        const arr: (Ticket | null)[] = new Array(this.TOTAL_SLOTS).fill(null);
-
-        for (let idx = 0; idx < this.TOTAL_SLOTS && idx < this.timeSlots.length; idx++) {
-          if (Math.random() < 0.55) {
-            const received = Math.random() < 0.65;
-            arr[idx] = {
-              id: Number(`${day}${idx}`) + 1000,
-              patient: `Patient ${idx + 1}`,
-              phone: `05${Math.floor(10000000 + Math.random() * 89999999)}`,
-              status: received ? 'Received' : 'Not Received',
-              timeSlot: this.timeSlots[idx],
-            };
-          }
-        }
-
-        this.schedules[clinicId][doc.id][day] = arr;
-        this.slotCache[clinicId][doc.id][day] = this.buildSlotsFromTickets(arr);
-        this.updateDayStats(clinicId, doc.id, day);
-        this.updateTimeDistCache(clinicId, doc.id, day);
-      }
-    }
-  }
-
-  // ================== Build helpers ==================
-
-  private buildSlotsFromTickets(arr: (Ticket | null)[]): Slot[] {
-    return arr.map((tk, index) => {
-      const timeSlot = index < this.timeSlots.length ? this.timeSlots[index] : 'Extra Slot';
-
-      if (!tk) {
-        return {
-          index,
-          type: 'empty',
-          css: 'empty',
-          timeSlot,
-          shortTime: timeSlot.split(' ')[0],
-          title: `Empty - ${timeSlot}`,
-          ticket: null,
-        };
-      }
-
-      const type: Slot['type'] = tk.status === 'Received' ? 'received' : 'notReceived';
-
-      return {
-        index,
-        type,
-        css: type === 'received' ? 'received' : 'not-received',
-        ticket: tk,
-        timeSlot: tk.timeSlot ?? timeSlot,
-        shortTime: (tk.timeSlot ?? timeSlot).split(' ')[0],
-        title: tk.timeSlot ?? timeSlot,
-      };
+        this._branches.set(mapped);
+        this._branchesLoading.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load branches', err);
+        this._branches.set([]);
+        this._branchesLoading.set(false);
+      },
     });
   }
 
-  private updateDayStats(clinicId: number, doctorId: number, day: number) {
-    const slots = this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
-    let reserved = 0;
-    let notReceived = 0;
-    let empty = 0;
+  // ================== Specializations ==================
 
-    for (const s of slots) {
-      if (s.type === 'received') reserved++;
-      else if (s.type === 'notReceived') notReceived++;
-      else empty++;
-    }
+  private loadSpecializations(): void {
+    this.http.get<{ item: any[] }>(`${environment.baseUrl}/specialized`).subscribe({
+      next: (res) => {
+        const items = res?.item || [];
 
-    const available = notReceived + empty;
-
-    if (!this.dayStatsCache[clinicId]) {
-      this.dayStatsCache[clinicId] = {};
-    }
-    if (!this.dayStatsCache[clinicId][doctorId]) {
-      this.dayStatsCache[clinicId][doctorId] = {};
-    }
-
-    this.dayStatsCache[clinicId][doctorId][day] = {
-      reserved,
-      notReceived,
-      empty,
-      available,
-      total: slots.length,
-    };
+        this.clinics = items.map((sp: any) => {
+          const name = sp.arabicName || sp.englishName || `Clinic ${sp.id}`;
+          return {
+            id: sp.id,
+            name,
+            doctors: [],
+            schedule: {},
+          } as Clinic;
+        });
+      },
+      error: (err) => {
+        console.error('Failed to load specializations', err);
+        this.clinics = [];
+      },
+    });
   }
 
-  private updateTimeDistCache(clinicId: number, doctorId: number, day: number) {
-    const key = `${clinicId}-${doctorId}-${day}`;
-    const slots = this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
-    const map = new Map<string, number>();
+  loadOperatorsForClinic(clinicId: number): void {
+    if (!clinicId) return;
 
-    for (const s of slots) {
-      if (s.timeSlot) {
-        map.set(s.timeSlot, (map.get(s.timeSlot) ?? 0) + 1);
-      }
-    }
+    // /get-operators{id}
+    const url = `${environment.baseUrl}/specialized/get-operators${clinicId}`;
+    console.log('GET operators:', url);
 
-    this.timeDistCache[key] = Array.from(map.entries()).map(([time, count]) => ({ time, count }));
+    this.http.get<{ item: any[] }>(url).subscribe({
+      next: (res) => {
+        const items = res?.item || [];
+
+        const operators: Doctor[] = items.map((op: any) => ({
+          id: op.id,
+          name: op.arabicName || op.englishName,
+        }));
+
+        console.log('operators for clinic', clinicId, operators);
+
+        this.operatorsByClinic[clinicId] = operators;
+
+        const clinic = this.clinics.find((c) => c.id === clinicId);
+        if (clinic) clinic.doctors = operators;
+
+        this.loadOperatorDetailsForClinic(clinicId, operators);
+      },
+      error: (err) => {
+        console.error(`Failed to load operators for clinic ${clinicId}`, err);
+        this.operatorsByClinic[clinicId] = [];
+        const clinic = this.clinics.find((c) => c.id === clinicId);
+        if (clinic) clinic.doctors = [];
+        this.operatorDetailsByClinic[clinicId] = [];
+      },
+    });
   }
 
-  // ================== Public APIs ==================
-
-  slots(clinicId: number, doctorId: number, day: number): Slot[] {
-    return this.slotCache[clinicId]?.[doctorId]?.[day] ?? [];
+  getDoctorsByClinic(clinicId: number): Doctor[] {
+    const clinic = this.clinics.find((c) => c.id === clinicId);
+    return clinic?.doctors || this.operatorsByClinic[clinicId] || [];
   }
 
-  /** precomputed stats: تستخدم في الجدول بدل حساب متكرر */
-  countsFor(clinicId: number, doctorId: number, day: number): DayStats {
-    const byClinic = this.dayStatsCache[clinicId];
-    const byDoctor = byClinic?.[doctorId];
-    const stats = byDoctor?.[day];
+  hasOperatorDetails(clinicId: number): boolean {
+    return (this.operatorDetailsByClinic[clinicId] || []).length > 0;
+  }
 
-    if (stats) return stats;
-
-    // fallback أمان في حالة عدم وجود كاش (ما يحصلش غالباً)
-    const slots = this.slots(clinicId, doctorId, day);
-    let reserved = 0;
-    let notReceived = 0;
-    let empty = 0;
-
-    for (const s of slots) {
-      if (s.type === 'received') reserved++;
-      else if (s.type === 'notReceived') notReceived++;
-      else empty++;
+  private loadOperatorDetailsForClinic(clinicId: number, operators: Doctor[]): void {
+    if (!clinicId || !operators.length) {
+      this.operatorDetailsByClinic[clinicId] = [];
+      return;
     }
 
-    const available = notReceived + empty;
+    const requests = operators.map((op) =>
+      this.http.get<{ item: any[] }>(
+        `${environment.baseUrl}/specialized/get-operator-details${op.id}`
+      )
+    );
+
+    forkJoin(requests).subscribe({
+      next: (responses) => {
+        const allDetails: OperatorDetail[] = [];
+
+        responses.forEach((res, index) => {
+          const op = operators[index];
+          const items = res?.item || [];
+
+          items.forEach((it: any) => {
+            allDetails.push({
+              operatorId: op.id,
+              name: it.arabicName || it.englishName || op.name,
+              durationWaiting: it.durationWaiting,
+              reservedTickets: it.reservedTickets ?? 0,
+              availableTickets: it.availableTickets ?? 0,
+              weekDays: this.extractWeekDays(it.weekDay),
+              startTime: it.startTime,
+              endTime: it.endTime,
+            });
+          });
+        });
+
+        console.log('details for clinic', clinicId, allDetails);
+        this.operatorDetailsByClinic[clinicId] = allDetails;
+      },
+      error: (err) => {
+        console.error(`Failed to load operator details for clinic ${clinicId}`, err);
+        this.operatorDetailsByClinic[clinicId] = [];
+      },
+    });
+  }
+
+  private extractWeekDays(raw: string): string[] {
+    if (!raw) return [];
+    return raw
+      .split(',')
+      .map((p) => p.trim().toLowerCase())
+      .filter((v) => !!v);
+  }
+
+  private getDayCode(date: Date): string {
+    const codes = ['su', 'mo', 'tu', 'we', 'th', 'fr', 'sa'];
+    return codes[date.getDay()];
+  }
+
+  countsFor(clinicId: number, doctorId: number, date: Date): DayStats {
+    const details = this.operatorDetailsByClinic[clinicId] || [];
+    const currentCode = this.getDayCode(date);
+
+    const matches = details.filter(
+      (d) => d.operatorId === doctorId && d.weekDays.includes(currentCode)
+    );
+
+    if (!matches.length) {
+      return {
+        reserved: 0,
+        notReceived: 0,
+        empty: 0,
+        available: 0,
+        total: 0,
+      };
+    }
+
+    const reserved = matches.reduce((sum, d) => sum + (d.reservedTickets || 0), 0);
+    const available = matches.reduce((sum, d) => sum + (d.availableTickets || 0), 0);
+    const total = reserved + available;
 
     return {
       reserved,
-      notReceived,
-      empty,
+      notReceived: 0,
+      empty: available,
       available,
-      total: slots.length,
+      total,
     };
   }
 
-  timeDistribution(clinicId: number, doctorId: number, day: number) {
-    return this.timeDistCache[`${clinicId}-${doctorId}-${day}`] ?? [];
-  }
+  slots(clinicId: number, doctorId: number, day: string | number | Date): Slot[] {
+    const details = this.operatorDetailsByClinic[clinicId] || [];
+    if (!details.length) return [];
 
-  // ================== Mutations ==================
+    let date: Date;
 
-  addAtSlot(clinicId: number, doctorId: number, day: number, slotIndex: number, t: Ticket) {
-    if (!this.schedules[clinicId]?.[doctorId]?.[day]) {
-      if (!this.schedules[clinicId]) this.schedules[clinicId] = {};
-      if (!this.schedules[clinicId][doctorId]) this.schedules[clinicId][doctorId] = {};
-      this.schedules[clinicId][doctorId][day] = new Array(this.TOTAL_SLOTS).fill(null);
+    if (day instanceof Date) {
+      date = day;
+    } else if (typeof day === 'string') {
+      date = new Date(day);
+    } else {
+      const now = new Date();
+      date = new Date(now.getFullYear(), now.getMonth(), day);
     }
 
-    this.schedules[clinicId][doctorId][day][slotIndex] = t;
-    this.refreshDay(clinicId, doctorId, day);
-  }
+    const dayCode = this.getDayCode(date);
 
-  updateTicket(clinicId: number, doctorId: number, day: number, ticket: Ticket) {
-    const arr = this.schedules[clinicId]?.[doctorId]?.[day] ?? [];
-    const idx = arr.findIndex((t) => t?.id === ticket.id);
-    if (idx !== -1) {
-      arr[idx] = { ...ticket };
-      this.refreshDay(clinicId, doctorId, day);
+    const matches = details.filter(
+      (d) => d.operatorId === doctorId && d.weekDays.includes(dayCode)
+    );
+
+    if (!matches.length) return [];
+
+    let all: Slot[] = [];
+    let startIndex = 0;
+
+    for (const det of matches) {
+      const part = this.buildSlotsFromDetail(det, startIndex);
+      all = all.concat(part);
+      startIndex += part.length;
     }
+
+    return all;
   }
 
-  refreshDay(clinicId: number, doctorId: number, day: number) {
-    const tickets = this.schedules[clinicId]?.[doctorId]?.[day] ?? [];
-    if (!this.slotCache[clinicId]) this.slotCache[clinicId] = {};
-    if (!this.slotCache[clinicId][doctorId]) this.slotCache[clinicId][doctorId] = {};
+  private buildSlotsFromDetail(detail: OperatorDetail, startIndex = 0): Slot[] {
+    const slots: Slot[] = [];
 
-    this.slotCache[clinicId][doctorId][day] = this.buildSlotsFromTickets(tickets);
+    const SLOT_MINUTES = 30;
 
-    this.updateDayStats(clinicId, doctorId, day);
-    this.updateTimeDistCache(clinicId, doctorId, day);
+    const [sh, sm] = detail.startTime.split(':').map(Number);
+    const [eh, em] = detail.endTime.split(':').map(Number);
+
+    let current = sh * 60 + sm;
+    const end = eh * 60 + em;
+
+    const maxByTime = Math.floor((end - current) / SLOT_MINUTES);
+    const totalSlots = Math.min(detail.availableTickets || 0, Math.max(maxByTime, 0));
+
+    for (let i = 0; i < totalSlots; i++) {
+      const minutes = current + i * SLOT_MINUTES;
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+      slots.push({
+        index: startIndex + i,
+        type: 'empty',
+        css: 'empty',
+        ticket: null,
+        timeSlot: label,
+        shortTime: label,
+        title: `Available slot ${startIndex + i + 1} (${label})`,
+      });
+    }
+
+    return slots;
   }
 
-  // ================== Helpers ==================
-
-  getTimeSlotLabel(index: number) {
-    return index < this.timeSlots.length ? this.timeSlots[index] : 'Extra Slot';
+  addAtSlot(
+    _clinicId: number,
+    _doctorId: number,
+    _day: number | string,
+    _slotIndex: number,
+    _t: Ticket
+  ) {}
+  updateTicket(_clinicId: number, _doctorId: number, _day: number | string, _ticket: Ticket) {}
+  refreshDay(_clinicId: number, _doctorId: number, _day: number | string) {}
+  getTimeSlotLabel(_index: number) {
+    return '';
   }
-
-  receivedSlots(clinicId: number, doctorId: number, day: number) {
-    return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'received');
+  receivedSlots(_clinicId: number, _doctorId: number, _day: number | string) {
+    return [];
   }
-
-  notReceivedSlots(clinicId: number, doctorId: number, day: number) {
-    return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'notReceived');
+  notReceivedSlots(_clinicId: number, _doctorId: number, _day: number | string) {
+    return [];
   }
-
-  emptySlots(clinicId: number, doctorId: number, day: number) {
-    return this.slots(clinicId, doctorId, day).filter((s) => s.type === 'empty');
+  emptySlots(_clinicId: number, _doctorId: number, _day: number | string) {
+    return [];
   }
-
-  getTicketById(clinicId: number, doctorId: number, day: number, ticketId: number): Ticket | null {
-    const arr = this.schedules[clinicId]?.[doctorId]?.[day] ?? [];
-    return (arr.find((t) => t?.id === ticketId) as Ticket) ?? null;
+  getTicketById(
+    _clinicId: number,
+    _doctorId: number,
+    _day: number | string,
+    _ticketId: number
+  ): Ticket | null {
+    return null;
   }
 }

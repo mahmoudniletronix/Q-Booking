@@ -2,7 +2,7 @@
    Layout & Table
    ======================================== */
 .schedule-page {
-  max-width: 1800px;
+  max-width: 1600px;
 }
 .card-body {
   margin-top: 100px;
@@ -73,7 +73,7 @@
   transition: all 0.15s ease-in-out;
   width: 100%;
   justify-content: center;
-  max-width: 120px;
+  max-width: 75px;
 }
 
 .pill-reserved {
