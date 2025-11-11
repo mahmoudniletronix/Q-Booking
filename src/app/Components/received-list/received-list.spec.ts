@@ -8,9 +8,8 @@ describe('ReceivedList', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ReceivedList]
-    })
-    .compileComponents();
+      imports: [ReceivedList],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(ReceivedList);
     component = fixture.componentInstance;

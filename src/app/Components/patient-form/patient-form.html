@@ -11,8 +11,10 @@
       </button>
     </div>
 
+    <div *ngIf="loading" class="text-center text-muted py-4">Loading...</div>
+
     <!-- Card -->
-    <div class="row justify-content-center">
+    <div class="row justify-content-center" *ngIf="!loading">
       <div class="col-md-6">
         <div class="card patient-card shadow-lg border-0">
           <div class="card-body p-4">
@@ -20,11 +22,13 @@
               <div class="mb-3">
                 <label class="form-label fw-semibold">Time Slot</label>
                 <input type="text" class="form-control readonly" [value]="timeInfo" disabled />
-                <div class="form-text">
+                <div class="form-text" *ngIf="timeInfo">
                   {{
-                    mode === 'add' ? 'This slot is available for reservation' : 'Appointment time:'
+                    mode === 'add'
+                      ? 'This slot is available for reservation at '
+                      : 'Appointment time: '
                   }}
-                  <strong>{{ timeInfo }}</strong> (30 minutes)
+                  <strong>{{ timeInfo }}</strong>
                 </div>
               </div>
 
@@ -55,8 +59,9 @@
               <div class="mb-4">
                 <label class="form-label fw-semibold">Status</label>
                 <select class="form-select" [(ngModel)]="model.status" name="status">
-                  <option>Reserved</option>
-                  <option>Available</option>
+                  <!-- مطابق لـ TicketStatus -->
+                  <option value="Received">Received</option>
+                  <option value="Not Received">Not Received</option>
                 </select>
               </div>
 
@@ -64,7 +69,7 @@
                 <button
                   class="btn btn-primary action-btn"
                   type="submit"
-                  [disabled]="!model.patient || !model.phone"
+                  [disabled]="!model.patient || !model.phone || (mode === 'add' && !timeInfo)"
                 >
                   {{ mode === 'add' ? 'Add Patient' : 'Save Changes' }}
                 </button>
@@ -76,8 +81,10 @@
           </div>
         </div>
 
-        <div class="info-note small text-muted mt-3 text-center" *ngIf="mode === 'add'">
-          * The appointment will be reserved for <strong>{{ timeInfo }}</strong> (30 minutes).
+        <div class="info-note small text-muted mt-3 text-center" *ngIf="mode === 'add' && timeInfo">
+          * The appointment will be reserved at
+          <strong>{{ timeInfo }}</strong
+          >.
         </div>
       </div>
     </div>

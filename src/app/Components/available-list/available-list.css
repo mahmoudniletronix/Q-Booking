@@ -1,10 +1,9 @@
-/* Main page background */
 .available-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   padding: 24px 12px;
-  background: linear-gradient(to bottom, #ffe9d7, #ff8540);
+  margin-top: 60px;
 }
 
 .available-page .container {
@@ -29,7 +28,7 @@
 .avail-grid {
   margin-top: 6px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); /* fits 6–7 cards per row */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px;
 }
 .avail-card {

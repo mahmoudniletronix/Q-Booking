@@ -1,37 +1,194 @@
 <div class="container my-4 reserved-page">
-  <div class="header-wrap">
-    <h5 class="title">Reserved — Day {{ day }}</h5>
-    <div class="sub text-muted">View reservation details.</div>
-  </div>
+  <div class="row">
+    <!-- LEFT: Tickets   -->
+    <div class="col-lg-8 col-12">
+      <div class="header-wrap d-flex justify-content-between align-items-center mb-3 flex-wrap">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <button class="btn-back" (click)="back()">↩</button>
 
-  <div *ngIf="items.length; else empty" class="res-grid">
-    <div class="res-card" *ngFor="let s of items; trackBy: trackBySlot" (click)="goEdit(s)">
-      <div class="card-top">
-        <span class="time">{{ s.timeSlot }}</span>
-        <span class="type-chip reserved">Reserved</span>
+          <div>
+            <h5 class="title mb-0">Reserved — Day {{ dayLabel }}</h5>
+            <div class="sub">
+              {{ items.length }}
+              reservation{{ items.length !== 1 ? 's' : '' }} found for this doctor.
+            </div>
+          </div>
+        </div>
+
+        <!-- Right side: Selected count -->
+        <div class="muted small-text" *ngIf="items.length">{{ selectedIds.size }} selected</div>
       </div>
 
-      <div class="card-mid">
-        <div class="patient">{{ s.ticket?.patient }}</div>
-        <div class="muted small">#{{ s.ticket?.id }} • {{ s.ticket?.phone }}</div>
+      <!-- Tickets Grid -->
+      <div *ngIf="items.length; else empty" class="res-grid">
+        <div
+          class="res-card"
+          *ngFor="let t of items; trackBy: trackById"
+          [class.selected]="selectedIds.has(t.id)"
+          (click)="onTicketClick(t)"
+        >
+          <div class="shine"></div>
+
+          <div class="card-top">
+            <div class="left">
+              <span class="time">{{ t.timeSlot }}</span>
+            </div>
+
+            <div class="right">
+              <span class="muted number">#{{ t.number }}</span>
+              <span class="type-chip reserved">Reserved</span>
+            </div>
+          </div>
+
+          <div class="card-mid">
+            <div class="patient text-truncate">{{ t.patientName }}</div>
+            <div class="muted small-text">
+              {{ t.phoneNumber }} •
+              {{ t.createDate | date : 'short' }}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="card-bottom">
-        <button class="cta view" type="button">View Reservation</button>
-      </div>
-
-      <div class="shine"></div>
+      <ng-template #empty>
+        <div class="empty-state text-center mt-5">
+          <div class="emoji">📄</div>
+          <div class="lead fw-semibold">No reserved tickets for this day.</div>
+        </div>
+      </ng-template>
     </div>
-  </div>
 
-  <ng-template #empty>
-    <div class="empty-state text-center mt-5">
-      <div class="emoji">📄</div>
-      <div class="lead fw-semibold">No reserved tickets for this day.</div>
+    <!-- RIGHT: Actions + Summary (col-4) -->
+    <div class="col-lg-4 d-none d-lg-block">
+      <div class="actions-panel">
+        <!-- Selection Controls -->
+        <div class="panel-section">
+          <div class="section-title">Selection</div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="muted">
+              Selected:
+              <strong>{{ selectedIds.size }}</strong> / {{ items.length }}
+            </div>
+            <div class="d-flex gap-1">
+              <button
+                type="button"
+                class="btn btn-xs btn-outline-light"
+                (click)="selectAll()"
+                [disabled]="!items.length"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                class="btn btn-xs btn-outline-light"
+                (click)="clearSelection()"
+                [disabled]="!selectedIds.size"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Move to another doctor -->
+        <div class="panel-section">
+          <div class="section-title">Move selected to another doctor</div>
+          <select class="form-select form-select-sm mb-2" [(ngModel)]="targetDoctorId">
+            <option [ngValue]="null" disabled>Choose doctor...</option>
+            <option *ngFor="let d of targetDoctors" [ngValue]="d.id" [disabled]="d.id === doctorId">
+              {{ d.name }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="btn btn-sm btn-move w-100"
+            [disabled]="!canMove()"
+            (click)="moveSelected()"
+          >
+            Move selected ({{ selectedIds.size }})
+          </button>
+        </div>
+
+        <!-- Change Day -->
+        <div class="panel-section">
+          <div class="section-title">Change day</div>
+          <input
+            type="date"
+            class="form-control form-control-sm mb-2"
+            [ngModel]="day"
+            (ngModelChange)="onDayChange($event)"
+          />
+        </div>
+
+        <!-- Cancel with Note -->
+        <div class="panel-section">
+          <div class="section-title">Cancel selected reservations</div>
+          <textarea
+            class="form-control form-control-sm mb-2"
+            rows="2"
+            placeholder="Write cancel reason..."
+            [(ngModel)]="cancelNote"
+          ></textarea>
+          <button
+            type="button"
+            class="btn btn-sm btn-cancel w-100"
+            [disabled]="!canCancel()"
+            (click)="cancelSelected()"
+          >
+            Cancel selected ({{ selectedIds.size }})
+          </button>
+        </div>
+
+        <!-- Summary of focused ticket -->
+        <div class="panel-section" *ngIf="focusedTicket">
+          <div class="section-title">Ticket details</div>
+          <div class="ticket-summary">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="badge-number">#{{ focusedTicket.number }}</div>
+              <span class="time-pill">{{ focusedTicket.timeSlot }}</span>
+            </div>
+            <div class="summary-line">
+              <span class="label">Patient:</span>
+              <span class="value">{{ focusedTicket.patientName }}</span>
+            </div>
+            <div class="summary-line">
+              <span class="label">Phone:</span>
+              <span class="value">{{ focusedTicket.phoneNumber }}</span>
+            </div>
+            <div class="summary-line">
+              <span class="label">Created:</span>
+              <span class="value">
+                {{ focusedTicket.createDate | date : 'short' }}
+              </span>
+            </div>
+            <div class="summary-line" *ngIf="focusedTicket.customerInput">
+              <span class="label">Note:</span>
+              <span class="value">{{ focusedTicket.customerInput }}</span>
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+              <button
+                type="button"
+                class="btn btn-xs btn-outline-light flex-fill bg-success"
+                (click)="editTicket(focusedTicket)"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                class="btn btn-xs btn-outline-light flex-fill bg-primary"
+                (click)="printTicket(focusedTicket)"
+              >
+                Print
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-empty" *ngIf="!focusedTicket && items.length">
+          Click any ticket on the left to view details here.
+        </div>
+      </div>
     </div>
-  </ng-template>
-
-  <div class="footer-actions mt-3">
-    <button class="btn-back" (click)="back()">↩ Back</button>
   </div>
 </div>

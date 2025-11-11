@@ -7,7 +7,8 @@
     </div>
 
     <div class="d-flex align-items-center me-3">
-      <img src="assets/image/logo.png" alt="Hospital Logo" width="42" height="42" class="me-2" />
+      <img [src]="orgLogo()" [alt]="orgName() + ' Logo'" width="42" height="42" class="me-2" />
+      <span class="org-name fw-semibold">{{ orgName() }}</span>
     </div>
 
     <h4 class="mb-0 header-path" *ngIf="headerSegments.length">

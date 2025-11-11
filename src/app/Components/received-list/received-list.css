@@ -1,120 +1,261 @@
-.reserved-page .title {
-  font-weight: 800;
-  margin-bottom: 4px;
-}
-.reserved-page .sub {
-  font-size: 12px;
+/* ================= GLOBAL ================= */
+.reserved-page {
+  color: #2f1b10;
+  margin-top: 90px !important;
 }
 
+.reserved-page .title {
+  font-weight: 800;
+  color: #2e1508;
+}
+
+.reserved-page .sub {
+  font-size: 12px;
+  color: #7a4f27;
+}
+
+.header-wrap {
+  margin-bottom: 6px;
+}
+
+/* ================= GRID ================= */
 .res-grid {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
+
 .res-card {
   position: relative;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 80%, #fff3eb);
+  box-shadow: 0 4px 18px rgba(51, 31, 7, 0.1);
   padding: 12px 14px;
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+  transition: all 0.18s ease;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
 }
+
 .res-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 26px rgba(51, 31, 7, 0.18);
 }
-.shine {
+
+.res-card.selected {
+  border-color: #fb923c;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.25);
+}
+
+/* light shine */
+.res-card::before {
+  content: '';
   position: absolute;
   inset: 0;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.07), rgba(59, 130, 246, 0.04));
+  border-radius: inherit;
+  background: radial-gradient(circle at top left, rgba(255, 237, 213, 0.4), transparent 70%);
+  opacity: 0.6;
   pointer-events: none;
 }
 
+/* ================= CARD CONTENT ================= */
 .card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .time {
   font-size: 18px;
   font-weight: 800;
-  color: #0f172a;
+  color: #1e293b;
 }
+
+.number {
+  font-size: 11px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 3px 6px;
+  color: #475569;
+}
+
 .type-chip {
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-radius: 999px;
   border: 1px solid;
 }
+
 .type-chip.reserved {
-  color: #3b0764;
-  background: #f3e8ff;
-  border-color: #e9d5ff;
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
 }
 
 .card-mid {
   margin-top: 6px;
 }
+
 .patient {
   font-weight: 700;
+  font-size: 14px;
   color: #111827;
 }
+
 .muted {
   color: #6b7280;
   font-size: 12px;
 }
 
-.card-bottom {
-  margin-top: 10px;
-}
-.cta {
-  border: 0;
-  border-radius: 10px;
-  padding: 7px 10px;
-  font-size: 12px;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: transform 0.1s, filter 0.1s;
-}
-.cta .ico {
-  font-size: 14px;
-}
-.cta.view {
-  background: linear-gradient(90deg, #c4b5fd 0, #a78bfa 100%);
-  color: #30156b;
-  box-shadow: 0 4px 10px rgba(49, 20, 107, 0.15);
-}
-.cta.view:hover {
-  transform: scale(1.04);
-  filter: saturate(1.05);
-}
-
-.empty-state .emoji {
-  font-size: 36px;
-}
+/* ================= BUTTONS ================= */
 .btn-back {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  padding: 6px 14px;
   font-weight: 700;
   font-size: 12px;
-  color: #1e293b;
+  color: #7c2d12;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(249, 115, 22, 0.15);
 }
+
 .btn-back:hover {
-  background: #e2e8f0;
+  background: #fff7ed;
+  transform: translateY(-1px);
+}
+
+/* ================= RIGHT PANEL ================= */
+.actions-panel {
+  position: sticky;
+  top: 60px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(254, 215, 170, 0.7);
+  box-shadow: 0 8px 28px rgba(51, 31, 7, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel-section {
+  background: #fffaf5;
+  border: 1px solid #ffe0b5;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9a6a37;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.btn-move {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  background: linear-gradient(90deg, #f97316, #ea580c);
+  color: white;
+  box-shadow: 0 4px 10px rgba(234, 88, 12, 0.3);
+  transition: all 0.15s;
+}
+
+.btn-move:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(234, 88, 12, 0.35);
+}
+
+.btn-cancel {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 12px;
+  background: linear-gradient(90deg, #dc2626, #b91c1c);
+  color: white;
+  box-shadow: 0 4px 10px rgba(185, 28, 28, 0.25);
+  transition: all 0.15s;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(185, 28, 28, 0.35);
+}
+
+.btn-cancel:disabled,
+.btn-move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ================= SUMMARY ================= */
+.ticket-summary {
+  font-size: 12px;
+  color: #4b5563;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 8px;
+  border: 1px solid #ffe0b5;
+}
+
+.badge-number {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #7c2d12;
+}
+
+.time-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.summary-line {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.summary-line .label {
+  color: #9a6a37;
+  min-width: 55px;
+  font-weight: 600;
+}
+
+.summary-line .value {
+  color: #374151;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 991px) {
+  .actions-panel {
+    position: static;
+    margin-top: 14px;
+  }
 }
 
 @media (max-width: 576px) {
   .res-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
   .time {
     font-size: 16px;

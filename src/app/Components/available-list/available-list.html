@@ -10,9 +10,10 @@
     </div>
 
     <div class="row justify-content-center align-items-start layout-row">
-      <!-- LEFT: Slots (col-8) -->
       <div class="col-lg-8 col-md-7 mb-4 mb-md-0">
-        <div class="avail-grid" *ngIf="slots.length; else noSlots">
+        <div *ngIf="loading" class="text-center py-4 text-muted">Loading slots...</div>
+
+        <div class="avail-grid" *ngIf="!loading && slots.length; else noSlots">
           <div
             class="avail-card"
             *ngFor="let s of slots; trackBy: trackBySlot"
@@ -29,7 +30,6 @@
             </div>
 
             <div class="card-bottom">
-              <!-- لو لسه فاضي -->
               <ng-container *ngIf="!isReserved(s); else reservedInfo">
                 <button class="cta add" type="button">
                   <span class="ico">➕</span>
@@ -37,7 +37,6 @@
                 </button>
               </ng-container>
 
-              <!-- لو محجوز -->
               <ng-template #reservedInfo>
                 <div class="reserved-label">
                   <span class="ico">✅</span>
@@ -51,14 +50,13 @@
         </div>
 
         <ng-template #noSlots>
-          <div class="empty-state text-center mt-3">
+          <div class="empty-state text-center mt-3" *ngIf="!loading">
             <div class="emoji">🗓️</div>
             <div class="lead fw-semibold">No available slots for this day.</div>
           </div>
         </ng-template>
       </div>
 
-      <!-- RIGHT: Details (col-4) -->
       <div class="col-lg-4 col-md-5">
         <div class="patient-form-page" *ngIf="selectedSlot; else detailsHint">
           <div class="patient-card shadow-lg border-0">
@@ -73,7 +71,6 @@
                 <div class="slot-label">
                   Slot:
                   <strong>{{ timeInfo }}</strong>
-                  <span class="chip-30">30 min</span>
                 </div>
               </div>
 
@@ -85,7 +82,6 @@
                     class="form-control"
                     [(ngModel)]="model.patient"
                     name="patient"
-                    placeholder="Enter full name"
                     required
                   />
                 </div>
@@ -97,7 +93,6 @@
                     class="form-control"
                     [(ngModel)]="model.phone"
                     name="phone"
-                    placeholder="05XXXXXXXX"
                     required
                   />
                 </div>
@@ -105,7 +100,6 @@
                 <div class="mb-3">
                   <label class="form-label fw-semibold">Status</label>
                   <select class="form-select" [(ngModel)]="model.status" name="status">
-                    <!-- متماشية مع TicketStatus: 'Received' | 'Not Received' -->
                     <option value="Received">Received</option>
                     <option value="Not Received">Not Received</option>
                   </select>
@@ -128,19 +122,13 @@
                   </button>
                 </div>
               </form>
-
-              <div class="info-note small text-muted mt-3" *ngIf="mode === 'add'">
-                * The appointment will be reserved at
-                <strong>{{ timeInfo }}</strong>
-                (30 minutes).
-              </div>
             </div>
           </div>
         </div>
 
         <ng-template #detailsHint>
           <div class="details-placeholder text-center text-muted">
-            <div class="emoji">👈</div>
+            <div class="emoji"></div>
             <div class="mt-2">
               Select an available time slot on the left
               <br />

@@ -1,12 +1,13 @@
 .footer {
   bottom: 0;
-  left: 0;
+  position: fixed;
   width: 100%;
   background-color: #f8f9fa;
   border-top: 1px solid #dee2e6;
   text-align: center;
   z-index: 100;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  padding: 1rem 0;
 }
 
 .footer .container {

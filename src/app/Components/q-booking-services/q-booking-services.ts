@@ -1,13 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
+import { Component, HostListener, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import {
-  Doctor,
-  ScheduleServices,
-  Slot,
   Branch,
   DayStats,
+  Doctor,
+  ScheduleServices,
 } from '../../service/schedule/schedule-services';
 import { HeaderPathService } from '../../service/HeaderPathService/HeaderPath-Service';
 
@@ -25,12 +24,14 @@ interface VisibleDay {
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './q-booking-services.html',
   styleUrls: ['./q-booking-services.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  // لاحظ: مفيش OnPush هنا
 })
 export class QBookingServices {
   private headerPath = inject(HeaderPathService);
 
-  constructor(public sch: ScheduleServices, private router: Router) {}
+  constructor(public sch: ScheduleServices, private router: Router) {
+    this.buildVisibleDays();
+  }
 
   selectedBranchId: number | null = null;
   selectedBranchPath = '';
@@ -38,13 +39,13 @@ export class QBookingServices {
   filter = {
     searchQuery: '',
     operatorId: 'all' as OperatorId,
-    reservedChecked: true,
-    availableChecked: true,
   };
 
   private readonly today = new Date();
   viewYear = this.today.getFullYear();
-  viewMonth = this.today.getMonth();
+  viewMonth = this.today.getMonth(); // 0-based
+
+  visibleDays: VisibleDay[] = [];
 
   // ===== Keyboard nav for month =====
   @HostListener('window:keydown', ['$event'])
@@ -70,6 +71,7 @@ export class QBookingServices {
 
   onBranchChange(id: number | null) {
     this.selectedBranchId = id;
+    this.sch.setSelectedBranch(id);
 
     const br = this.branches.find((b) => b.id === id) || null;
     this.selectedBranchPath = br ? br.path : '';
@@ -80,10 +82,13 @@ export class QBookingServices {
 
   // ===== Specialization =====
   onSpecializationChange(id: number | null) {
-    this.sch.selectedClinicId.set(id);
+    this.sch.setSelectedClinic(id);
     this.resetFilters();
     this.updateHeaderPath();
-    if (id) this.sch.loadOperatorsForClinic(id);
+
+    if (id) {
+      this.loadScheduleForCurrentMonth();
+    }
   }
 
   private updateHeaderPath() {
@@ -93,12 +98,17 @@ export class QBookingServices {
     this.headerPath.setExtraPath(extra);
   }
 
+  private loadScheduleForCurrentMonth() {
+    const clinicId = this.sch.selectedClinicId();
+    if (!clinicId) return;
+    this.sch.loadSchedule(clinicId, this.viewYear, this.viewMonth + 1);
+  }
+
   // ===== Filters =====
   get hasActiveFilters(): boolean {
     return (
       (this.filter.searchQuery && this.filter.searchQuery.trim().length > 0) ||
-      this.filter.operatorId !== 'all' ||
-      !(this.filter.reservedChecked && this.filter.availableChecked)
+      this.filter.operatorId !== 'all'
     );
   }
 
@@ -106,8 +116,6 @@ export class QBookingServices {
     this.filter = {
       searchQuery: '',
       operatorId: 'all',
-      reservedChecked: true,
-      availableChecked: true,
     };
   }
 
@@ -125,9 +133,20 @@ export class QBookingServices {
     return this.selectedClinic?.name ?? 'Select a specialization';
   }
 
-  get selectedClinicDoctors(): Doctor[] {
+  private get selectedClinicDoctorsInternal(): Doctor[] {
     const id = this.sch.selectedClinicId();
     return id ? this.sch.getDoctorsByClinic(id) : [];
+  }
+
+  get filteredClinicDoctors(): Doctor[] {
+    const docs = this.selectedClinicDoctorsInternal;
+    const q = this.filter.searchQuery.trim().toLowerCase();
+
+    return docs.filter((d) => {
+      if (q && !d.name.toLowerCase().includes(q)) return false;
+      if (this.filter.operatorId !== 'all' && this.filter.operatorId !== d.id) return false;
+      return true;
+    });
   }
 
   // ===== Month / days =====
@@ -146,7 +165,7 @@ export class QBookingServices {
     return 1;
   }
 
-  get visibleDays(): VisibleDay[] {
+  private buildVisibleDays() {
     const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
     const start = this.startDayForView;
     const result: VisibleDay[] = [];
@@ -163,7 +182,7 @@ export class QBookingServices {
       result.push({ dayNum: d, label, date });
     }
 
-    return result;
+    this.visibleDays = result;
   }
 
   prevMonth() {
@@ -173,6 +192,8 @@ export class QBookingServices {
     } else {
       this.viewMonth -= 1;
     }
+    this.buildVisibleDays();
+    this.loadScheduleForCurrentMonth();
   }
 
   nextMonth() {
@@ -182,66 +203,16 @@ export class QBookingServices {
     } else {
       this.viewMonth += 1;
     }
+    this.buildVisibleDays();
+    this.loadScheduleForCurrentMonth();
   }
 
-  // ===== Filtered doctors =====
-  get filteredClinicDoctors(): Doctor[] {
-    const docs = this.selectedClinicDoctors;
-    const clinicId = this.sch.selectedClinicId();
-    if (!docs || !clinicId) return [];
-
-    const q = this.filter.searchQuery.trim().toLowerCase();
-    const hasDetails = this.sch.hasOperatorDetails(clinicId);
-
-    return docs.filter((d) => {
-      if (q) {
-        const matchesName = d.name.toLowerCase().includes(q);
-        const matchesStatus =
-          q.includes('reserved') ||
-          q.includes('حجز') ||
-          q.includes('available') ||
-          q.includes('متاح');
-        const matchesDay = this.visibleDays.some((day) => day.label.toLowerCase().includes(q));
-
-        if (!matchesName && !matchesStatus && !matchesDay) return false;
-      }
-
-      if (this.filter.operatorId !== 'all' && this.filter.operatorId !== d.id) {
-        return false;
-      }
-
-      if (!hasDetails) return true;
-
-      if (this.filter.reservedChecked || this.filter.availableChecked) {
-        const hasReserved =
-          this.filter.reservedChecked && this.hasStatusForDoctor(clinicId, d.id, 'reserved');
-        const hasAvailable =
-          this.filter.availableChecked && this.hasStatusForDoctor(clinicId, d.id, 'available');
-
-        if (!hasReserved && !hasAvailable) return false;
-      }
-
-      return true;
-    });
-  }
-
-  private hasStatusForDoctor(
-    clinicId: number,
-    doctorId: number,
-    status: 'reserved' | 'available'
-  ): boolean {
-    for (const day of this.visibleDays) {
-      const c = this.counts(clinicId, doctorId, day);
-      if (status === 'reserved' && c.reserved > 0) return true;
-      if (status === 'available' && c.available > 0) return true;
-    }
-    return false;
-  }
-
+  // ===== DayStats =====
   counts(clinicId: number, doctorId: number, day: VisibleDay): DayStats {
     return this.sch.countsFor(clinicId, doctorId, day.date);
   }
 
+  // ===== Navigation on click =====
   private formatDateKey(date: Date): string {
     const y = date.getFullYear();
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -261,57 +232,7 @@ export class QBookingServices {
     this.router.navigate(['/patient/available', clinicId, doctor.id, dayKey]);
   }
 
-  ui = {
-    showEmptyPicker: false,
-    showReceivedList: false,
-    clinicId: null as number | null,
-    doctor: null as Doctor | null,
-    day: null as number | null,
-  };
-
-  emptySlots: Slot[] = [];
-  receivedSlots: Slot[] = [];
-
-  openEmptyPicker(clinicId: number, doctor: Doctor, day: number) {
-    const all = this.sch.slots(clinicId, doctor.id, day);
-    this.emptySlots = all.filter((s) => s.type === 'empty');
-    this.ui = {
-      showEmptyPicker: true,
-      showReceivedList: false,
-      clinicId,
-      doctor,
-      day,
-    };
-  }
-
-  openReceivedList(clinicId: number, doctor: Doctor, day: number) {
-    const all = this.sch.slots(clinicId, doctor.id, day);
-    this.receivedSlots = all.filter((s) => s.ticket && s.ticket.status === 'Received');
-    this.ui = {
-      showEmptyPicker: false,
-      showReceivedList: true,
-      clinicId,
-      doctor,
-      day,
-    };
-  }
-
-  closeOverlays() {
-    this.ui.showEmptyPicker = false;
-    this.ui.showReceivedList = false;
-  }
-
-  goAddTicket(clinicId: number, doctorId: number, day: number, slotIndex: number) {
-    this.closeOverlays();
-    this.router.navigate(['/patient/add', clinicId, doctorId, day, slotIndex]);
-  }
-
-  goEditTicket(clinicId: number, doctorId: number, day: number, ticketId: number) {
-    this.closeOverlays();
-    this.router.navigate(['/patient/edit', clinicId, doctorId, day, ticketId]);
-  }
-
+  // ===== trackBy =====
   trackByDay = (_: number, day: VisibleDay) => day.dayNum;
   trackByDoctor = (_: number, d: Doctor) => d.id;
-  trackBySlot = (_: number, s: Slot) => s.index;
 }

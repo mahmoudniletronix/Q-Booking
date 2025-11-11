@@ -8,7 +8,7 @@
           <label class="form-label small mb-1">Branch</label>
           <select
             class="form-select form-select-sm"
-            [ngModel]="selectedBranchId"
+            [ngModel]="sch.selectedBranchId()"
             (ngModelChange)="onBranchChange($event)"
           >
             <option [ngValue]="null" disabled>Choose branch...</option>
@@ -44,7 +44,7 @@
           >
             <option [ngValue]="'all'">All operators</option>
             <option
-              *ngFor="let d of selectedClinicDoctors; trackBy: trackByDoctor"
+              *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
               [ngValue]="d.id"
             >
               {{ d.name }}
@@ -75,27 +75,8 @@
               class="form-control"
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
-              placeholder="Search by doctor, day, or status..."
+              placeholder="Search by doctor..."
             />
-          </div>
-        </div>
-      </div>
-
-      <!-- Legend -->
-      <div class="row g-2 mb-2 align-items-center filters-row" *ngIf="sch.selectedClinicId()">
-        <div class="col-12">
-          <div class="legend-wrap">
-            <label class="legend-item">
-              <input type="checkbox" [(ngModel)]="filter.reservedChecked" />
-              <span class="legend-box reserved"></span>
-              <span>Reserved</span>
-            </label>
-
-            <label class="legend-item">
-              <input type="checkbox" [(ngModel)]="filter.availableChecked" />
-              <span class="legend-box available"></span>
-              <span>Available</span>
-            </label>
           </div>
         </div>
       </div>
@@ -146,7 +127,6 @@
                   <ng-container *ngIf="counts(clinicId, d.id, day) as c">
                     <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
                       <button
-                        *ngIf="filter.reservedChecked"
                         class="pill pill-reserved"
                         type="button"
                         [title]="c.reserved + ' reserved'"
@@ -157,7 +137,6 @@
                       </button>
 
                       <button
-                        *ngIf="filter.availableChecked"
                         class="pill pill-available"
                         type="button"
                         [title]="'Available: ' + c.available"
@@ -173,7 +152,7 @@
 
               <tr *ngIf="filteredClinicDoctors.length === 0">
                 <td colspan="99" class="text-center small text-muted py-3">
-                  No doctors match the current filters. Try adjusting search, operator, or legend.
+                  No doctors match the current filters.
                 </td>
               </tr>
             </tbody>
