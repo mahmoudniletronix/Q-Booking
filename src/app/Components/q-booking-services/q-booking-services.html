@@ -25,11 +25,22 @@
             class="form-select form-select-sm"
             [ngModel]="sch.selectedClinicId()"
             (ngModelChange)="onSpecializationChange($event)"
+            [disabled]="!sch.selectedBranchId() || clinicsLoading"
           >
-            <option [ngValue]="null" disabled>Select specialization...</option>
-            <option *ngFor="let c of sch.clinics" [ngValue]="c.id">
-              {{ c.name }}
+            <option [ngValue]="null" disabled>
+              {{
+                sch.selectedBranchId()
+                  ? clinicsLoading
+                    ? 'Loading...'
+                    : 'Select specialization...'
+                  : 'Select a branch first'
+              }}
             </option>
+            <ng-container *ngIf="sch.selectedBranchId() && !clinicsLoading">
+              <option *ngFor="let c of sch.clinics" [ngValue]="c.id">
+                {{ c.name }}
+              </option>
+            </ng-container>
           </select>
         </div>
 
@@ -76,7 +87,7 @@
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
               (ngModelChange)="onSearchChange($event)"
-              placeholder="Search by doctor..."
+              placeholder="Search doctors by name..."
             />
           </div>
         </div>
@@ -112,7 +123,7 @@
                       <div class="doctor-name" [title]="d.name">
                         {{ d.name }}
                       </div>
-                      <div class="doctor-meta small text-muted">30 min / slot</div>
+                      <!-- <div class="doctor-meta small text-muted">30 min / slot</div> -->
                     </th>
                   </tr>
                 </thead>

@@ -94,19 +94,30 @@ export class QBookingServices implements OnDestroy {
   onBranchChange(id: number | null) {
     this.selectedBranchId = id;
     this.sch.setSelectedBranch(id);
+    this.sch.setSelectedClinic(null);
+    this.filter.operatorId = 'all';
+    this.filter.searchQuery = '';
 
     const br = this.branches.find((b) => b.id === id) || null;
-    this.selectedBranchPath = br ? br.path : '';
 
-    this.headerPath.setBranchPath(this.selectedBranchPath);
-    this.updateHeaderPath();
+    const branchName = br?.name ?? '';
+
+    this.selectedBranchPath = branchName;
+
+    this.headerPath.setBranchPath(branchName);
+
+    this.updateHeaderPath?.();
+  }
+
+  get clinicsLoading(): boolean {
+    return typeof this.sch.clinicsLoading === 'function' ? this.sch.clinicsLoading() : false;
   }
 
   // ===== Specialization =====
   onSpecializationChange(id: number | null) {
+    if (!this.sch.selectedBranchId()) return;
     this.sch.setSelectedClinic(id);
-    this.resetFilters(false);
-    this.updateHeaderPath();
+    this.filter.operatorId = 'all';
     this.reloadIfReady();
   }
 
@@ -118,8 +129,7 @@ export class QBookingServices implements OnDestroy {
 
   private updateHeaderPath() {
     const clinicName = this.selectedClinicName;
-    const extra =
-      clinicName && clinicName !== 'Select a specialization' ? `Main / ${clinicName}` : 'Main';
+    const extra = clinicName && clinicName !== 'Select a specialization' ? `/ ${clinicName}` : '';
     this.headerPath.setExtraPath(extra);
   }
 

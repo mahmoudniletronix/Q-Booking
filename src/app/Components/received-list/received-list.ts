@@ -233,7 +233,8 @@ export class ReceivedList {
         const url = URL.createObjectURL(blob);
         this.openPreviewWindow(
           'Ticket Preview',
-          `<iframe src="${url}" style="border:0;width:100%;height:100vh"></iframe>`
+          `<iframe id="pdfFrame" src="${url}" style="border:0;width:100%;height:100vh"></iframe>`,
+          { autoPrint: true }
         );
         return;
       }
@@ -248,20 +249,18 @@ export class ReceivedList {
         asJson = null;
       }
       if (asJson && asJson.number) {
-        const inner = this.buildDarkTicketHtml(asJson as TicketPrintDto);
-        this.openPreviewWindow(`#${asJson.number}`, inner);
+        const inner = this.buildLegacyTicketHtml(asJson as TicketPrintDto);
+        this.openPreviewWindow(`#${asJson.number}`, inner, { autoPrint: true });
         return;
       }
 
-      // Image / other -> preview image
       const url = URL.createObjectURL(blob);
       this.openPreviewWindow(
         'Ticket Preview',
-        `
-        <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#fff">
-          <img src="${url}" style="max-width:100%;max-height:100%" />
-        </div>
-      `
+        `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#fff">
+            <img src="${url}" style="max-width:100%;max-height:100%" />
+          </div>`,
+        { autoPrint: true }
       );
     } catch (err) {
       console.error('Print error', err);
@@ -269,70 +268,191 @@ export class ReceivedList {
     }
   }
 
-  private openPreviewWindow(title: string, bodyInnerHtml: string) {
+  private openPreviewWindow(title: string, bodyInnerHtml: string, opts?: { autoPrint?: boolean }) {
     const w = window.open('', '_blank', 'width=720,height=900');
     if (!w) return;
+
     const css = `
-      *{box-sizing:border-box}body{margin:0;font-family:"Tajawal","Segoe UI",Arial}
-      .toolbar{position:fixed;top:0;left:0;right:0;background:#111;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10}
-      .toolbar .title{font-weight:700;margin-inline-end:auto}
-      .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
-      .btn-print{background:#22c55e;color:#fff}
-      .btn-close{background:#ef4444;color:#fff}
-      .content{margin-top:48px}
-      @media print {.toolbar{display:none}.content{margin-top:0}}
-    `;
+    *{box-sizing:border-box}
+    html,body{margin:0;font-family:"Tajawal","Segoe UI",Arial;-webkit-font-smoothing:antialiased}
+    .toolbar{
+      position:fixed;top:0;left:0;right:0;background:#111;color:#fff;
+      padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10
+    }
+    .toolbar .title{font-weight:700;margin-inline-end:auto}
+    .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+    .btn-print{background:#22c55e;color:#fff}
+    .btn-close{background:#ef4444;color:#fff}
+
+    .content{margin-top:48px;display:flex;justify-content:center}
+    .print-wrap{display:flex;justify-content:center;width:100%}
+     .print-page{
+      width:80mm; background:#fff;
+      page-break-inside:avoid;break-inside:avoid;
+     }
+
+    @media print{
+      @page { size:80mm auto; margin:0 }   
+      .toolbar{display:none}
+      .content{margin-top:0}
+      html,body{width:80mm}
+      .print-page{width:80mm;padding:0}    
+      img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+    }
+  `;
+
+    const printScript = `
+    <script>
+      (function(){
+        function waitImages(){
+          const imgs=[...document.images];
+          return Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;})));
+        }
+        async function ready(){ try{await waitImages();}catch{} }
+        ${
+          opts?.autoPrint === false
+            ? ''
+            : `if(document.readyState==="complete") ready(); else addEventListener('load',ready,{once:true});`
+        }
+      })();
+    <\/script>
+  `;
+
     w.document.open();
     w.document.write(`
-      <html lang="ar" dir="rtl">
-        <head>
-          <meta charset="utf-8"/><title>${title}</title>
-          <style>${css}</style>
-        </head>
-        <body>
-          <div class="toolbar">
-            <div class="title">${title}</div>
-            <button class="btn-print" onclick="print()">Print</button>
-            <button class="btn-close" onclick="close()">Close</button>
+    <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8"/><title>${title}</title>
+        <style>${css}</style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="title">${title}</div>
+          <button class="btn-print" onclick="print()">Print</button>
+          <button class="btn-close" onclick="close()">Close</button>
+        </div>
+        <div class="content">
+          <div class="print-wrap">
+            <div class="print-page">
+              ${bodyInnerHtml}
+            </div>
           </div>
-          <div class="content">${bodyInnerHtml}</div>
-        </body>
-      </html>
-    `);
+        </div>
+        ${printScript}
+      </body>
+    </html>
+  `);
     w.document.close();
   }
 
-  private buildDarkTicketHtml(dto: TicketPrintDto): string {
+  private buildLegacyTicketHtml(dto: TicketPrintDto): string {
     const orgLogo = this.makeAbsoluteUrl(this.globalCfg.orgLogo());
+    const service = dto.serviceEnglishName ?? '';
+    const branch = dto.branchName ?? '';
+    const wait = dto.waitingCount ?? 0;
+
     return `
-    <style>
-      body{background:#222;color:#fff}
-      .wrap{border:1px solid #bbb;padding:12px;border-radius:6px;background:#222;width:100%}
-      .logo{text-align:center;margin:8px 0 4px}
-      .logo img{max-width:120px;max-height:60px;background:#fff;padding:4px;border-radius:2px}
-      .row2{display:flex;justify-content:space-between;font-size:12px;color:#ddd;margin:6px 0}
-      .service{text-align:center;font-weight:700;margin:6px 0 2px}
-      .num{text-align:center;font-size:26px;font-weight:800;margin:2px 0 10px}
-      .hr{height:1px;background:#bbb;margin:10px auto;width:86%;opacity:.9}
-      .input{text-align:center;font-size:13px;margin-bottom:4px}
-      .foot-line{width:86%;height:1px;background:#bbb;margin:6px auto}
-      .pair{width:86%;margin:0 auto;font-size:12px;line-height:1.6}
-      .pair .value{font-weight:700}
-    </style>
-    <div class="wrap">
-      <div class="logo"><img src="${orgLogo}" alt="logo"/></div>
-      <div class="row2"><div>${dto.printDate}</div><div>${dto.printTime}</div></div>
-      <div class="service">${dto.serviceEnglishName}</div>
-      <div class="num">${dto.number}</div>
-      <div class="hr"></div>
-      <div class="input">${dto.customerInput ?? ''}</div>
-      <div class="hr" style="width:94%"></div>
-      <div class="pair">
-        <div><span class="value">${dto.branchName}</span></div>
-        <div><span class="value">${dto.waitingCount}</span> عملاء منتظرين</div>
-      </div>
-      <div class="foot-line"></div>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;            
+      font-family: "Tajawal","Segoe UI",Arial,sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: #000;
+      background: #fff;
+    }
+
+     .ticket {
+      margin: 0 auto;
+      padding: 0 0 2mm 0;    
+      background: #fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      text-align: center;
+    }
+
+    .logo { margin: 2mm 0 2mm; }
+    .logo img {
+      display: block;
+      margin: 0 auto;
+      max-width: 70mm;
+      max-height: 55mm;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9pt;
+      color: #444;
+      padding: 0 6mm;
+      margin-bottom: 2mm;
+    }
+
+    .service { font-size: 12pt; font-weight: 700; line-height: 1.3; }
+    .num     { font-size: 22pt; font-weight: 800; margin: 1mm 0 3mm; letter-spacing: .5pt; }
+
+    .info {
+      text-align: right;
+      width: 90%;
+      margin: 0 auto 3mm;
+      font-size: 10pt;
+      line-height: 1.6;
+    }
+    .label { font-weight: 700; }
+    .value { font-weight: 500; }
+
+    .site {
+      margin: 0 auto;
+      text-align: center;
+      border-top: 1px solid #000;
+    }
+    .site-border {
+      width: 100%;
+      height: 1px;
+      background: #000;
+      margin: 2mm 0 1.5mm 0;   
+      display: block;
+    }
+    .site-text {
+      font-size: 9pt;
+      font-weight: 500;
+      color: #000;
+      direction: ltr;
+      letter-spacing: .3pt;
+    }
+
+    @page { size: 80mm auto; margin: 0; }
+
+    @media print {
+      html, body { width: 80mm; margin: 0; padding: 0; }
+      .ticket    { width: 80mm; margin: 0; padding: 0 0 2mm 0; }
+      img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+
+  <div class="ticket">
+    <div class="logo">
+      <img src="${orgLogo}" alt="logo" />
     </div>
+
+    <div class="header">
+      <span style="color:#000; margin-right: 20px">${dto.printTime ?? ''}</span>
+      <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
+    </div>
+
+    <div class="service">${service}</div>
+    <div class="num">${dto.number ?? ''}</div>
+
+    <div class="info">
+      <div><span class="label">الفرع:</span> <span class="value">${branch}</span></div>
+      <div><span class="label">عملاء منتظرين:</span> <span class="value">${wait}</span></div>
+    </div>
+
+    <div class="site">
+      <div class="site-border"></div>
+      <div class="site-text">www.Niletronix.com</div>
+    </div>
+  </div>
   `;
   }
 

@@ -86,3 +86,6 @@ body,
     padding-top: 70px;
   }
 }
+.search-box {
+  float: right;
+}

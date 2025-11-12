@@ -72,8 +72,13 @@ export interface DayMeta {
 
 @Injectable({ providedIn: 'root' })
 export class ScheduleServices {
-  readonly selectedBranchId = signal<number | null>(null);
-  readonly selectedClinicId = signal<number | null>(null);
+  selectedBranchId = signal<number | null>(null);
+  selectedClinicId = signal<number | null>(null);
+  selectedDoctorId = signal<number | null>(null);
+
+  setSelectedDoctor(id: number | null) {
+    this.selectedDoctorId.set(id);
+  }
 
   private readonly _branches = signal<Branch[]>([]);
   private readonly _branchesLoading = signal<boolean>(false);
@@ -105,14 +110,49 @@ export class ScheduleServices {
     'الجمعة',
     'السبت',
   ];
-
+  private readonly _clinicsLoading = signal<boolean>(false);
+  clinicsLoading = this._clinicsLoading;
   constructor(private http: HttpClient) {
     this.loadBranches();
-    this.loadSpecializations();
+  }
+
+  private loadSpecializationsByBranch(branchId: number): void {
+    if (!branchId) {
+      this.clinics = [];
+      return;
+    }
+
+    this._clinicsLoading.set(true);
+    const url = `${environment.baseUrl}/specialized?branchId=${branchId}`;
+
+    this.http.get<{ item?: any[]; items?: any[] }>(url).subscribe({
+      next: (res) => {
+        const list = res?.item ?? res?.items ?? [];
+        this.clinics = list.map((sp: any) => ({
+          id: sp.id,
+          name: sp.arabicName || sp.englishName || `Clinic ${sp.id}`,
+          doctors: [],
+        }));
+        this._clinicsLoading.set(false);
+      },
+      error: () => {
+        this.clinics = [];
+        this._clinicsLoading.set(false);
+      },
+    });
   }
 
   setSelectedBranch(id: number | null) {
     this.selectedBranchId.set(id);
+
+    this.setSelectedClinic(null);
+    this.clinics = [];
+    this.countsCache = {};
+    this.metaCache = {};
+
+    if (id) {
+      this.loadSpecializationsByBranch(id);
+    }
   }
 
   private loadBranches(): void {

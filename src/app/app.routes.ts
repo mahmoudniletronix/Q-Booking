@@ -8,27 +8,27 @@ export const routes: Routes = [
   {
     path: '',
     component: QBookingServices,
-    data: { pageTitle: 'Main' },
+    // data: { pageTitle: 'Main' },
   },
   {
     path: 'patient/received/:clinicId/:doctorId/:day',
     component: ReceivedList,
-    data: { pageTitle: 'Reserved Appointments' },
+    // data: { pageTitle: 'Reserved Appointments' },
   },
   {
     path: 'patient/available/:clinicId/:doctorId/:day',
     component: AvailableList,
-    data: { pageTitle: 'Available Slots' },
+    // data: { pageTitle: 'Available Slots' },
   },
   {
     path: 'patient/add/:clinicId/:doctorId/:day/:slotIndex',
     component: PatientForm,
-    data: { pageTitle: 'Add Patient' },
+    // data: { pageTitle: 'Add Patient' },
   },
   {
     path: 'patient/edit/:clinicId/:doctorId/:day/:ticketId',
     component: PatientForm,
-    data: { pageTitle: 'Edit Patient' },
+    // data: { pageTitle: 'Edit Patient' },
   },
   { path: '**', redirectTo: '' },
 ];
