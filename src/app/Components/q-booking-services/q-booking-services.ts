@@ -1,7 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router, RouterModule, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+
 import {
   Branch,
   DayStats,
@@ -24,14 +26,33 @@ interface VisibleDay {
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './q-booking-services.html',
   styleUrls: ['./q-booking-services.css'],
-  // لاحظ: مفيش OnPush هنا
 })
-export class QBookingServices {
+export class QBookingServices implements OnDestroy {
   private headerPath = inject(HeaderPathService);
 
   constructor(public sch: ScheduleServices, private router: Router) {
     this.buildVisibleDays();
+
+    this.navSub = this.router.events
+      .pipe(filter((e) => e instanceof NavigationEnd))
+      .subscribe(() => this.reloadIfReady());
+
+    this.busSub = this.sch.scheduleChanged$.subscribe(({ clinicId, year, month }) => {
+      const currentClinic = this.sch.selectedClinicId();
+      if (!currentClinic) return;
+      if (currentClinic === clinicId && year === this.viewYear && month === this.viewMonth + 1) {
+        this.reloadIfReady();
+      }
+    });
   }
+
+  ngOnDestroy() {
+    this.navSub?.unsubscribe();
+    this.busSub?.unsubscribe();
+  }
+
+  private navSub: any;
+  private busSub: any;
 
   selectedBranchId: number | null = null;
   selectedBranchPath = '';
@@ -43,9 +64,10 @@ export class QBookingServices {
 
   private readonly today = new Date();
   viewYear = this.today.getFullYear();
-  viewMonth = this.today.getMonth(); // 0-based
+  viewMonth = this.today.getMonth();
 
   visibleDays: VisibleDay[] = [];
+  private searchTimer: number | null = null;
 
   // ===== Keyboard nav for month =====
   @HostListener('window:keydown', ['$event'])
@@ -83,12 +105,15 @@ export class QBookingServices {
   // ===== Specialization =====
   onSpecializationChange(id: number | null) {
     this.sch.setSelectedClinic(id);
-    this.resetFilters();
+    this.resetFilters(false);
     this.updateHeaderPath();
+    this.reloadIfReady();
+  }
 
-    if (id) {
-      this.loadScheduleForCurrentMonth();
-    }
+  private reloadIfReady() {
+    const clinicId = this.sch.selectedClinicId();
+    if (!clinicId) return;
+    this.sch.loadSchedule(clinicId, this.viewYear, this.viewMonth + 1, this.filter.searchQuery);
   }
 
   private updateHeaderPath() {
@@ -96,12 +121,6 @@ export class QBookingServices {
     const extra =
       clinicName && clinicName !== 'Select a specialization' ? `Main / ${clinicName}` : 'Main';
     this.headerPath.setExtraPath(extra);
-  }
-
-  private loadScheduleForCurrentMonth() {
-    const clinicId = this.sch.selectedClinicId();
-    if (!clinicId) return;
-    this.sch.loadSchedule(clinicId, this.viewYear, this.viewMonth + 1);
   }
 
   // ===== Filters =====
@@ -112,15 +131,19 @@ export class QBookingServices {
     );
   }
 
-  resetFilters() {
-    this.filter = {
-      searchQuery: '',
-      operatorId: 'all',
-    };
+  resetFilters(triggerReload: boolean = true) {
+    this.filter = { searchQuery: '', operatorId: 'all' };
+    if (triggerReload) this.reloadIfReady();
   }
 
   onOperatorChange(id: OperatorId) {
     this.filter.operatorId = id;
+  }
+
+  onSearchChange(term: string) {
+    this.filter.searchQuery = term ?? '';
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = window.setTimeout(() => this.reloadIfReady(), 300);
   }
 
   // ===== Selected clinic / doctors =====
@@ -152,10 +175,7 @@ export class QBookingServices {
   // ===== Month / days =====
   get monthLabel(): string {
     const date = new Date(this.viewYear, this.viewMonth, 1);
-    return date.toLocaleString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
+    return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   }
 
   private get startDayForView(): number {
@@ -169,19 +189,15 @@ export class QBookingServices {
     const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
     const start = this.startDayForView;
     const result: VisibleDay[] = [];
-
     for (let d = start; d <= daysInMonth; d++) {
       const date = new Date(this.viewYear, this.viewMonth, d);
-
       const label = date.toLocaleDateString('en-GB', {
         weekday: 'short',
         day: '2-digit',
         month: 'short',
       });
-
       result.push({ dayNum: d, label, date });
     }
-
     this.visibleDays = result;
   }
 
@@ -193,7 +209,7 @@ export class QBookingServices {
       this.viewMonth -= 1;
     }
     this.buildVisibleDays();
-    this.loadScheduleForCurrentMonth();
+    this.reloadIfReady();
   }
 
   nextMonth() {
@@ -204,7 +220,7 @@ export class QBookingServices {
       this.viewMonth += 1;
     }
     this.buildVisibleDays();
-    this.loadScheduleForCurrentMonth();
+    this.reloadIfReady();
   }
 
   // ===== DayStats =====

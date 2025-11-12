@@ -14,19 +14,28 @@ export interface TicketReservationDto {
   customerInput: string;
   patientName: string;
   phoneNumber: string;
+  slotTime?: string;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+export interface TicketPrintDto {
+  branchName: string;
+  customerInfo: string;
+  customerInput: string;
+  number: string;
+  parentServiceEnglishName: string;
+  printDate: string;
+  printTime: string;
+  serviceEnglishName: string;
+  waitingCount: number;
+}
+
+@Injectable({ providedIn: 'root' })
 export class TicketReservation {
   private readonly baseUrl = environment.baseUrl;
-
   constructor(private http: HttpClient) {}
 
-  getByServiceAndDate(serviceId: number, date: string): Observable<TicketReservationDto[]> {
-    const params = new HttpParams().set('serviceId', serviceId).set('date', date);
-
+  getByServiceAndDate(serviceId: number, dateUs: string): Observable<TicketReservationDto[]> {
+    const params = new HttpParams().set('serviceId', serviceId).set('date', dateUs);
     return this.http
       .get<{ item: TicketReservationDto[] }>(`${this.baseUrl}/ticket-reservation`, { params })
       .pipe(map((res) => res?.item || []));
@@ -46,9 +55,11 @@ export class TicketReservation {
   }
 
   bulkCancel(ids: number[], note: string): Observable<any> {
-    return this.http.put(`${this.baseUrl}/ticket-reservation/cancel/bulk`, {
-      ids,
-      note,
-    });
+    return this.http.put(`${this.baseUrl}/ticket-reservation/cancel/bulk`, { ids, note });
+  }
+
+  printFromReservation(reservationId: number): Observable<Blob> {
+    const url = `${this.baseUrl}/ticket-reservation/api/tickets/from-reservation/${reservationId}`;
+    return this.http.post(url, null, { responseType: 'blob' });
   }
 }

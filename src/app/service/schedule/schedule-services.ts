@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environment/environment';
+import { Subject } from 'rxjs';
 
 export type TicketStatus = 'Received' | 'Not Received';
 
@@ -22,7 +23,7 @@ export interface DayStats {
   notReceived: number;
   empty: number;
   available: number;
-  total: number; // capacity من الباك
+  total: number;
 }
 
 export interface Branch {
@@ -52,10 +53,21 @@ export interface Slot {
 interface ScheduleApiItem {
   serviceId: number;
   serviceName: string;
-  day: string; // yyyy-MM-dd
+  day: string;
   reservedCount: number;
   capacity: number;
   available: number;
+  waitingDurationMinutes?: number;
+  shifts?: { startFrom: string; finishBy: string }[];
+  firstStart?: string;
+  lastFinish?: string;
+}
+
+export interface DayMeta {
+  waitingDurationMinutes: number;
+  firstStart: string;
+  lastFinish: string;
+  shifts: { startFrom: string; finishBy: string }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -65,19 +77,15 @@ export class ScheduleServices {
 
   private readonly _branches = signal<Branch[]>([]);
   private readonly _branchesLoading = signal<boolean>(false);
-
   branches = this._branches;
   branchesLoading = this._branchesLoading;
 
   clinics: Clinic[] = [];
 
-  // clinicId -> doctorId -> dayKey -> DayStats
   private countsCache: Record<number, Record<number, Record<string, DayStats>>> = {};
+  private metaCache: Record<number, Record<number, Record<string, DayMeta>>> = {};
 
-  // فقط للكاش المحلي (لو حبينا)
-  private ticketsById: Record<number, Ticket> = {};
-
-  private scheduleLoadedKey: Record<number, string> = {};
+  readonly scheduleChanged$ = new Subject<{ clinicId: number; year: number; month: number }>();
 
   private readonly dayNamesEn = [
     'Sunday',
@@ -103,19 +111,15 @@ export class ScheduleServices {
     this.loadSpecializations();
   }
 
-  // ============ Branches ============
-
   setSelectedBranch(id: number | null) {
     this.selectedBranchId.set(id);
   }
 
   private loadBranches(): void {
     this._branchesLoading.set(true);
-
     this.http.get<{ items: any[] }>(`${environment.baseUrl}/branches`).subscribe({
       next: (res) => {
         const items = res?.items || [];
-
         const mapped: Branch[] = items.map((item) => {
           const slug =
             (item.englishName || '')
@@ -147,13 +151,10 @@ export class ScheduleServices {
     });
   }
 
-  // ============ Clinics (Specializations) ============
-
   private loadSpecializations(): void {
     this.http.get<{ item: any[] }>(`${environment.baseUrl}/specialized`).subscribe({
       next: (res) => {
         const items = res?.item || [];
-
         this.clinics = items.map((sp: any) => ({
           id: sp.id,
           name: sp.arabicName || sp.englishName || `Clinic ${sp.id}`,
@@ -170,15 +171,13 @@ export class ScheduleServices {
     this.selectedClinicId.set(id);
   }
 
-  // ============ Schedule (counts) ============
-
-  loadSchedule(clinicId: number, year: number, month: number): void {
+  loadSchedule(clinicId: number, year: number, month: number, searchTerm?: string): void {
     if (!clinicId || !year || !month) return;
 
-    const key = `${year}-${month}`;
-    if (this.scheduleLoadedKey[clinicId] === key) return;
-
-    const url = `${environment.baseUrl}/ticket-reservation/get-schedule?serviceid=${clinicId}&year=${year}&month=${month}`;
+    let url = `${environment.baseUrl}/ticket-reservation/get-schedule?serviceid=${clinicId}&year=${year}&month=${month}`;
+    const trimmed = (searchTerm ?? '').trim();
+    if (trimmed) url += `&searchTerm=${encodeURIComponent(trimmed)}`;
+    url += `&ts=${Date.now()}`;
 
     this.http.get<{ item: ScheduleApiItem[] }>(url).subscribe({
       next: (res) => {
@@ -188,33 +187,24 @@ export class ScheduleServices {
 
         const doctorMap: Record<number, Doctor> = {};
         const clinicCounts: Record<number, Record<string, DayStats>> = {};
+        const clinicMeta: Record<number, Record<string, DayMeta>> = {};
 
         for (const row of items) {
           const capacity = row.capacity ?? 0;
-          if (capacity <= 0) continue; // لو بالـ 0 ما ندخلهاش أصلاً
+          if (capacity <= 0) continue;
 
           const doctorId = row.serviceId;
           const doctorName = row.serviceName || `Doctor ${doctorId}`;
           const dayKey = this.normalizeDateKey(row.day);
           if (!dayKey) continue;
 
-          if (!doctorMap[doctorId]) {
-            doctorMap[doctorId] = { id: doctorId, name: doctorName };
-          }
-
-          if (!clinicCounts[doctorId]) {
-            clinicCounts[doctorId] = {};
-          }
+          if (!doctorMap[doctorId]) doctorMap[doctorId] = { id: doctorId, name: doctorName };
+          if (!clinicCounts[doctorId]) clinicCounts[doctorId] = {};
+          if (!clinicMeta[doctorId]) clinicMeta[doctorId] = {};
 
           let stats = clinicCounts[doctorId][dayKey];
           if (!stats) {
-            stats = {
-              reserved: 0,
-              notReceived: 0,
-              empty: 0,
-              available: 0,
-              total: 0,
-            };
+            stats = { reserved: 0, notReceived: 0, empty: 0, available: 0, total: 0 };
             clinicCounts[doctorId][dayKey] = stats;
           }
 
@@ -225,16 +215,28 @@ export class ScheduleServices {
           stats.available += available;
           stats.total += capacity;
           stats.empty = stats.available;
+
+          clinicMeta[doctorId][dayKey] = {
+            waitingDurationMinutes: row.waitingDurationMinutes ?? 30,
+            firstStart: row.firstStart || (row.shifts?.[0]?.startFrom ?? '00:00:00'),
+            lastFinish:
+              row.lastFinish || (row.shifts?.[row.shifts.length - 1]?.finishBy ?? '23:59:59'),
+            shifts: row.shifts || [],
+          };
         }
 
         clinic.doctors = Object.values(doctorMap).sort((a, b) =>
           a.name.localeCompare(b.name, 'ar')
         );
         this.countsCache[clinicId] = clinicCounts;
-        this.scheduleLoadedKey[clinicId] = key;
+        this.metaCache[clinicId] = clinicMeta;
+
+        this.scheduleChanged$.next({ clinicId, year, month });
       },
       error: () => {
         this.countsCache[clinicId] = {};
+        this.metaCache[clinicId] = {};
+        this.scheduleChanged$.next({ clinicId, year, month });
       },
     });
   }
@@ -253,17 +255,7 @@ export class ScheduleServices {
     const clinicMap = this.countsCache[clinicId];
     const doctorMap = clinicMap?.[doctorId];
     const base = doctorMap?.[dayKey];
-
-    if (!base) {
-      return {
-        reserved: 0,
-        notReceived: 0,
-        empty: 0,
-        available: 0,
-        total: 0,
-      };
-    }
-
+    if (!base) return { reserved: 0, notReceived: 0, empty: 0, available: 0, total: 0 };
     return {
       reserved: base.reserved,
       notReceived: base.notReceived,
@@ -273,11 +265,15 @@ export class ScheduleServices {
     };
   }
 
-  // ============ Helpers for UI ============
+  getDayMeta(clinicId: number, doctorId: number, day: string | Date): DayMeta | null {
+    const dayKey = this.toDayKey(this.toDate(day));
+    return this.metaCache[clinicId]?.[doctorId]?.[dayKey] ?? null;
+  }
 
+  // ===== Helpers =====
   getDayNameFor(
-    _clinicId: number,
-    _doctorId: number,
+    _c: number,
+    _d: number,
     day: string | number | Date,
     lang: 'en' | 'ar' = 'en'
   ): string {
@@ -286,31 +282,6 @@ export class ScheduleServices {
     const dict = lang === 'ar' ? this.dayNamesAr : this.dayNamesEn;
     return dict[idx] || '';
   }
-
-  // في الحالة دي، الـ label للسلوت (لو مخزنة في الكاش) وإلا فاضي
-  getTimeSlotLabel(
-    clinicId: number,
-    doctorId: number,
-    day: string | number | Date,
-    slotIndex: number
-  ): string {
-    const dateKey = this.toDayKey(this.toDate(day));
-    const key = `${clinicId}_${doctorId}_${dateKey}`;
-    const slots = (this as any)._slotsCache?.[key] as Slot[] | undefined;
-    const s = slots?.find((x) => x.index === slotIndex);
-    return s?.timeSlot || '';
-  }
-
-  getTicketById(
-    _clinicId: number,
-    _doctorId: number,
-    _day: string | number | Date,
-    ticketId: number
-  ): Ticket | null {
-    return this.ticketsById[ticketId] || null;
-  }
-
-  // ============ Private helpers ============
 
   private normalizeDateKey(raw: string): string | null {
     if (!raw) return null;
@@ -328,15 +299,12 @@ export class ScheduleServices {
 
   private toDate(day: string | number | Date): Date {
     if (day instanceof Date) return day;
-
     if (typeof day === 'number') {
       const now = new Date();
       return new Date(now.getFullYear(), now.getMonth(), day);
     }
-
     const d = new Date(day);
     if (!isNaN(d.getTime())) return d;
-
     return new Date();
   }
 }

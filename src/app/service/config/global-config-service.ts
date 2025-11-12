@@ -49,12 +49,12 @@ export class GlobalConfigService {
       })
       .catch(() => {
         this._config.set({
-          orgName: 'Q-Booking',
+          orgName: 'Reservations',
           orgLogo: 'assets/image/logo.png',
         });
       });
   }
 
-  orgName = computed(() => this.config()?.orgName ?? 'Q-Booking');
+  orgName = computed(() => this.config()?.orgName ?? 'Reservations');
   orgLogo = computed(() => this.config()?.orgLogo ?? 'assets/image/logo.png');
 }

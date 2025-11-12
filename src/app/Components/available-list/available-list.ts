@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import { ScheduleServices, Slot, Ticket } from '../../service/schedule/schedule-services';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -32,12 +32,10 @@ export class AvailableList {
   selectedSlot: Slot | null = null;
   timeInfo = '';
 
-  model: Ticket = {
-    id: 0,
-    patient: '',
-    phone: '',
-    status: 'Received',
-  };
+  model: Ticket = { id: 0, patient: '', phone: '', status: 'Received' };
+
+  @ViewChild('formCard') formCard!: ElementRef<HTMLDivElement>;
+  @ViewChild('patientInput') patientInput!: ElementRef<HTMLInputElement>;
 
   constructor(
     private route: ActivatedRoute,
@@ -50,9 +48,7 @@ export class AvailableList {
       this.clinicId = +(p.get('clinicId') || 0);
       this.doctorId = +(p.get('doctorId') || 0);
       this.day = p.get('day') || '';
-
       this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
-
       this.loadSlots();
       this.clearSelection();
     });
@@ -60,59 +56,47 @@ export class AvailableList {
 
   private loadSlots() {
     this.slots = [];
-
     if (!this.clinicId || !this.doctorId || !this.day) return;
 
     const dateObj = new Date(this.day);
     const stats = this.sch.countsFor(this.clinicId, this.doctorId, dateObj);
+    if (!stats.total) return;
 
-    // لو مفيش capacity أصلاً → مفيش اليوم دا
-    if (!stats.total) {
-      return;
-    }
+    const meta = this.sch.getDayMeta(this.clinicId, this.doctorId, this.day);
+    const durationMin = meta?.waitingDurationMinutes ?? 30;
+    const start = this.combine(this.day, meta?.firstStart ?? '00:00:00');
+    const end = this.combine(this.day, meta?.lastFinish ?? '23:59:59');
+
+    const allTimes: string[] = this.generateTimes(start, end, durationMin);
 
     this.loading = true;
-    const apiDate = this.formatApiDate(this.day);
+    const apiDate = this.formatUsDate(this.day);
 
     this.ticketSrv.getByServiceAndDate(this.doctorId, apiDate).subscribe({
       next: (list: TicketReservationDto[]) => {
+        const reservedSet = new Set<string>();
+        list.forEach((r) =>
+          reservedSet.add((r.slotTime || this.extractTime(r.reservationDate)) ?? '')
+        );
+
         const slots: Slot[] = [];
-
-        // 1) السلات المحجوزة (من الباك)
-        list.forEach((r, idx) => {
-          const time = this.extractTime(r.reservationDate);
-          const ticket: Ticket = {
-            id: r.id,
-            patient: r.patientName,
-            phone: r.phoneNumber,
-            status: 'Received',
-            timeSlot: time,
-          };
-
-          slots.push({
-            index: idx,
-            timeSlot: time || `Slot ${idx + 1}`,
-            type: 'received',
-            ticket,
-          });
+        allTimes.forEach((t, idx) => {
+          if (reservedSet.has(t)) {
+            const dto = list.find((x) => (x.slotTime || this.extractTime(x.reservationDate)) === t);
+            const ticket: Ticket = {
+              id: dto?.id ?? 0,
+              patient: dto?.patientName ?? 'Booked',
+              phone: dto?.phoneNumber ?? '',
+              status: 'Received',
+              timeSlot: t,
+            };
+            slots.push({ index: idx, timeSlot: t, type: 'received', ticket });
+          } else {
+            slots.push({ index: idx, timeSlot: t, type: 'empty', ticket: null });
+          }
         });
 
-        const reservedCount = list.length;
-        const total = stats.total;
-        const availableCount = Math.max(total - reservedCount, 0);
-
-        // 2) السلات المتاحة: عددها من الباك (capacity - reserved)
-        for (let i = 0; i < availableCount; i++) {
-          const index = reservedCount + i;
-          slots.push({
-            index,
-            timeSlot: `Slot ${index + 1}`, // Label بسيط لحد ما يبقي عندك slotTime من الباك
-            type: 'empty',
-            ticket: null,
-          });
-        }
-
-        this.slots = slots;
+        this.slots = slots.filter((s) => s.type === 'empty');
         this.loading = false;
       },
       error: (err) => {
@@ -122,62 +106,108 @@ export class AvailableList {
     });
   }
 
-  private formatApiDate(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    const dd = d.getDate().toString().padStart(2, '0');
-    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}-${mm}-${yyyy}`;
+  // ====================== Helpers ======================
+  private combine(dayYmd: string, timeHms: string): Date {
+    const d = new Date(`${dayYmd}T${timeHms}`);
+    return isNaN(d.getTime()) ? new Date(dayYmd) : d;
+  }
+
+  private generateTimes(start: Date, end: Date, stepMin: number): string[] {
+    const out: string[] = [];
+    const ms = stepMin * 60 * 1000;
+    for (let t = start.getTime(); t < end.getTime(); t += ms) {
+      const dt = new Date(t);
+      out.push(this.toHms(dt));
+    }
+    return out;
+  }
+
+  private toHms(d: Date): string {
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    const ss = d.getSeconds().toString().padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
   }
 
   private extractTime(raw: string): string {
     const d = new Date(raw);
     if (isNaN(d.getTime())) return '';
-    const hh = d.getHours().toString().padStart(2, '0');
-    const mm = d.getMinutes().toString().padStart(2, '0');
-    return `${hh}:${mm}`;
+    return this.toHms(d);
+  }
+
+  formatTime(hms: string): string {
+    if (!hms) return '';
+    const [hStr, mStr] = hms.split(':');
+    let h = parseInt(hStr, 10);
+    const m = mStr ?? '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${m} ${ampm}`;
+  }
+
+  private formatUsDate(dayYmd: string): string {
+    const d = new Date(dayYmd);
+    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+    const dd = d.getDate().toString().padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
   }
 
   isReserved(s: Slot): boolean {
     return s.type === 'received' || !!s.ticket;
   }
 
+  // ====================== Interaction ======================
   onSlotClick(s: Slot) {
     if (this.isReserved(s)) return;
 
     this.mode = 'add';
     this.selectedSlot = s;
     this.timeInfo = s.timeSlot;
+    this.model = { id: 0, patient: '', phone: '', status: 'Received', timeSlot: this.timeInfo };
 
-    this.model = {
-      id: 0,
-      patient: '',
-      phone: '',
-      status: 'Received',
-      timeSlot: this.timeInfo,
-    };
+    setTimeout(() => {
+      this.scrollToForm();
+      this.focusPatient();
+    }, 0);
+  }
+
+  private scrollToForm() {
+    const el = this.formCard?.nativeElement;
+    if (!el) return;
+
+    const headerOffset = 90;
+    const top = el.getBoundingClientRect().top + window.scrollY - headerOffset;
+
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  private focusPatient() {
+    this.patientInput?.nativeElement?.focus();
   }
 
   save() {
     if (!this.selectedSlot) return;
     if (!this.model.patient || !this.model.phone) return;
 
-    // الـ slotTime هنا هو اللي هيتفهم في الباك (اتفقوا عليه: ممكن تبقى "Slot 5" أو وقت حقيقي)
     const payload: TicketReservationRequest = {
       slotTime: this.selectedSlot.timeSlot,
       patientName: this.model.patient,
       phoneNumber: this.model.phone,
       serviceId: this.doctorId,
       branchId: this.getBranchId(),
-      reservationDateBase: this.getReservationDateBaseIso(),
+      reservationDateBase: new Date(this.day).toISOString(),
     };
 
     this.availableSrv.createReservation(payload).subscribe({
       next: () => {
-        alert('✅ Reservation created successfully.');
-        this.loadSlots(); // نعيد تحميل السلات عشان يظهر الحجز
+        const d = new Date(this.day);
+        this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
+        this.loadSlots();
         this.clearSelection();
+        this.router.navigate(['']);
+        alert('✅ Reservation created successfully.');
       },
       error: (err) => {
         console.error('Reservation error', err);
@@ -189,32 +219,18 @@ export class AvailableList {
   private getBranchId(): number {
     const fromSignal = this.sch.selectedBranchId();
     if (fromSignal && fromSignal > 0) return fromSignal;
-
     const fromParam = +(this.route.snapshot.paramMap.get('branchId') || 0);
     if (fromParam > 0) return fromParam;
-
     const fromQuery = +(this.route.snapshot.queryParamMap.get('branchId') || 0);
     if (fromQuery > 0) return fromQuery;
-
     return 0;
-  }
-
-  private getReservationDateBaseIso(): string {
-    const d = new Date(this.day);
-    if (!isNaN(d.getTime())) return d.toISOString();
-    return new Date().toISOString();
   }
 
   clearSelection() {
     this.selectedSlot = null;
     this.timeInfo = '';
     this.mode = 'add';
-    this.model = {
-      id: 0,
-      patient: '',
-      phone: '',
-      status: 'Received',
-    };
+    this.model = { id: 0, patient: '', phone: '', status: 'Received' };
   }
 
   back() {

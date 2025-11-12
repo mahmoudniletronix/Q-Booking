@@ -75,6 +75,7 @@
               class="form-control"
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
+              (ngModelChange)="onSearchChange($event)"
               placeholder="Search by doctor..."
             />
           </div>
@@ -82,91 +83,91 @@
       </div>
 
       <!-- Schedule Table -->
-      <div *ngIf="sch.selectedClinicId() as clinicId" class="schedule-wrap">
-        <div class="table-responsive rounded-3 border schedule-viewport">
-          <div class="month-nav">
-            <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
-              <i class="bi bi-chevron-left"></i>
-            </button>
+      <div *ngIf="sch.selectedClinicId() as clinicId">
+        <ng-container *ngIf="filteredClinicDoctors.length > 0; else noResults">
+          <div class="schedule-wrap">
+            <div class="table-responsive rounded-3 border schedule-viewport">
+              <div class="month-nav">
+                <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
+                  <i class="bi bi-chevron-left"></i>
+                </button>
 
-            <div class="month-label fw-semibold">
-              {{ monthLabel }}
+                <div class="month-label fw-semibold">
+                  {{ monthLabel }}
+                </div>
+
+                <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="nextMonth()">
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </div>
+
+              <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th class="first-col sticky-col text-center">Day</th>
+                    <th
+                      *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
+                      class="text-center doctor-header sticky-top"
+                    >
+                      <div class="doctor-name" [title]="d.name">
+                        {{ d.name }}
+                      </div>
+                      <div class="doctor-meta small text-muted">30 min / slot</div>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr *ngFor="let day of visibleDays; trackBy: trackByDay">
+                    <th class="first-col sticky-col text-center">
+                      {{ day.label }}
+                    </th>
+
+                    <td
+                      *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
+                      class="text-center schedule-cell"
+                    >
+                      <ng-container *ngIf="counts(clinicId, d.id, day) as c">
+                        <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
+                          <button
+                            class="pill pill-reserved"
+                            type="button"
+                            [title]="c.reserved + ' reserved'"
+                            (click)="onReservedClick(clinicId, d, day)"
+                          >
+                            <span class="num">{{ c.reserved }}</span>
+                            <span class="label">Reserved</span>
+                          </button>
+
+                          <button
+                            class="pill pill-available"
+                            type="button"
+                            [title]="'Available: ' + c.available"
+                            (click)="onAvailableClick(clinicId, d, day)"
+                          >
+                            <span class="num">{{ c.available }}</span>
+                            <span class="label">Available</span>
+                          </button>
+                        </div>
+                      </ng-container>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-
-            <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="nextMonth()">
-              <i class="bi bi-chevron-right"></i>
-            </button>
           </div>
+        </ng-container>
+      </div>
 
-          <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th class="first-col sticky-col text-center">Day</th>
-                <th
-                  *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
-                  class="text-center doctor-header sticky-top"
-                >
-                  <div class="doctor-name" [title]="d.name">
-                    {{ d.name }}
-                  </div>
-                  <div class="doctor-meta small text-muted">30 min / slot</div>
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <tr *ngFor="let day of visibleDays; trackBy: trackByDay">
-                <th class="first-col sticky-col text-center">
-                  {{ day.label }}
-                </th>
-
-                <td
-                  *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
-                  class="text-center schedule-cell"
-                >
-                  <ng-container *ngIf="counts(clinicId, d.id, day) as c">
-                    <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
-                      <button
-                        class="pill pill-reserved"
-                        type="button"
-                        [title]="c.reserved + ' reserved'"
-                        (click)="onReservedClick(clinicId, d, day)"
-                      >
-                        <span class="num">{{ c.reserved }}</span>
-                        <span class="label">Reserved</span>
-                      </button>
-
-                      <button
-                        class="pill pill-available"
-                        type="button"
-                        [title]="'Available: ' + c.available"
-                        (click)="onAvailableClick(clinicId, d, day)"
-                      >
-                        <span class="num">{{ c.available }}</span>
-                        <span class="label">Available</span>
-                      </button>
-                    </div>
-                  </ng-container>
-                </td>
-              </tr>
-
-              <tr *ngIf="filteredClinicDoctors.length === 0">
-                <td colspan="99" class="text-center small text-muted py-3">
-                  No doctors match the current filters.
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <ng-template #noResults>
+        <div class="no-results text-center text-muted py-5">
+          لا توجد نتائج مطابقة لبحثك. جرّب تعديل البحث
         </div>
-      </div>
+      </ng-template>
 
-      <div *ngIf="!sch.selectedClinicId()" class="text-center text-muted py-4 small">
-        Select branch & specialization to view the schedule.
-      </div>
+      <ng-template #emptyCell>
+        <div class="empty-cell">-</div>
+      </ng-template>
     </div>
   </div>
 </div>
-
-<ng-template #emptyCell>
-  <div class="empty-cell">-</div>
-</ng-template>

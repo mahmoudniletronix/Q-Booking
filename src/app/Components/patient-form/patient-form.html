@@ -21,14 +21,14 @@
             <form (ngSubmit)="save()" novalidate>
               <div class="mb-3">
                 <label class="form-label fw-semibold">Time Slot</label>
-                <input type="text" class="form-control readonly" [value]="timeInfo" disabled />
+                <input type="text" class="form-control readonly" [value]="displayTime" disabled />
                 <div class="form-text" *ngIf="timeInfo">
                   {{
                     mode === 'add'
                       ? 'This slot is available for reservation at '
                       : 'Appointment time: '
                   }}
-                  <strong>{{ timeInfo }}</strong>
+                  <strong>{{ displayTime }}</strong>
                 </div>
               </div>
 
@@ -59,7 +59,6 @@
               <div class="mb-4">
                 <label class="form-label fw-semibold">Status</label>
                 <select class="form-select" [(ngModel)]="model.status" name="status">
-                  <!-- مطابق لـ TicketStatus -->
                   <option value="Received">Received</option>
                   <option value="Not Received">Not Received</option>
                 </select>
@@ -83,7 +82,7 @@
 
         <div class="info-note small text-muted mt-3 text-center" *ngIf="mode === 'add' && timeInfo">
           * The appointment will be reserved at
-          <strong>{{ timeInfo }}</strong
+          <strong>{{ displayTime }}</strong
           >.
         </div>
       </div>

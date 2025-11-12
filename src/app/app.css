@@ -3,12 +3,7 @@ body {
   font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   height: 100%;
   margin: 0;
-  background: linear-gradient(
-    0deg,
-    rgba(85, 75, 70, 1) 0%,
-    rgba(242, 100, 38, 1) 50%,
-    rgba(255, 255, 255, 1) 100%
-  ) !important;
+  background: linear-gradient(0deg, #1a80b6 0%, #36b9cc 30%, #fff 100%) !important;
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-size: cover;
@@ -44,7 +39,8 @@ app-footer {
   display: block;
   width: 100%;
   min-height: 0;
-  padding-bottom: 120px;
+  margin-top: 85px;
+  margin-bottom: 5vh;
 }
 
 .footer,

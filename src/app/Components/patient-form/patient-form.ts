@@ -25,10 +25,11 @@ export class PatientForm {
 
   clinicId!: number;
   doctorId!: number;
-  day!: string;
+  day!: string; // yyyy-MM-dd
   slotIndex: number | null = null;
   ticketId: number | null = null;
 
+  /** وقت داخلي للتعامل مع الـ API بصيغة HH:mm:ss */
   timeInfo = '';
   loading = true;
 
@@ -66,7 +67,6 @@ export class PatientForm {
     });
   }
 
-  // =========== Init (Add Mode) ===========
   private initAddMode() {
     if (
       !this.clinicId ||
@@ -79,35 +79,39 @@ export class PatientForm {
       return;
     }
 
-    const label = this.sch.getTimeSlotLabel(this.clinicId, this.doctorId, this.day, this.slotIndex);
-
-    this.timeInfo = label || '';
-    this.model.timeSlot = label || '';
+    const times = this.buildTimesForDay(this.day);
+    const t = times[this.slotIndex] || '';
+    this.timeInfo = t;
+    this.model.timeSlot = t;
     this.loading = false;
   }
 
-  // =========== Init (Edit Mode) ===========
   private initEditMode() {
     if (!this.ticketId || !this.doctorId || !this.day) {
       this.loading = false;
       return;
     }
 
-    const apiDate = this.formatApiDate(this.day);
+    const apiDateUs = this.formatUsDate(this.day); // MM/DD/YYYY
 
-    this.ticketSrv.getByServiceAndDate(this.doctorId, apiDate).subscribe({
+    this.ticketSrv.getByServiceAndDate(this.doctorId, apiDateUs).subscribe({
       next: (items: TicketReservationDto[]) => {
         const t = items.find((x) => x.id === this.ticketId) || null;
 
         if (t) {
+          const hms =
+            t.slotTime && t.slotTime.length >= 5
+              ? this.ensureHms(t.slotTime)
+              : this.extractHms(t.reservationDate);
+
           this.model = {
             id: t.id,
             patient: t.patientName,
             phone: t.phoneNumber,
             status: 'Received',
-            timeSlot: this.extractTime(t.reservationDate),
+            timeSlot: hms,
           };
-          this.timeInfo = this.model.timeSlot || '';
+          this.timeInfo = hms;
         }
 
         this.loading = false;
@@ -119,21 +123,65 @@ export class PatientForm {
     });
   }
 
-  private formatApiDate(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-
-    const dd = d.getDate().toString().padStart(2, '0');
-    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}-${mm}-${yyyy}`;
+  private buildTimesForDay(dayYmd: string): string[] {
+    const meta = this.sch.getDayMeta(this.clinicId, this.doctorId, dayYmd);
+    const durationMin = meta?.waitingDurationMinutes ?? 30;
+    const start = this.combine(dayYmd, meta?.firstStart ?? '00:00:00');
+    const end = this.combine(dayYmd, meta?.lastFinish ?? '23:59:59');
+    return this.generateTimes(start, end, durationMin);
   }
 
-  private extractTime(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return '';
+  private combine(dayYmd: string, timeHms: string): Date {
+    const d = new Date(`${dayYmd}T${this.ensureHms(timeHms)}`);
+    return isNaN(d.getTime()) ? new Date(dayYmd) : d;
+  }
+
+  private ensureHms(val: string): string {
+    if (!val) return '00:00:00';
+    const parts = val.split(':');
+    if (parts.length === 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
+    if (parts.length >= 3)
+      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:${parts[2].padStart(
+        2,
+        '0'
+      )}`;
+    return val;
+  }
+
+  private generateTimes(start: Date, end: Date, stepMin: number): string[] {
+    const out: string[] = [];
+    const stepMs = stepMin * 60 * 1000;
+    for (let t = start.getTime(); t < end.getTime(); t += stepMs) {
+      const dt = new Date(t);
+      out.push(this.toHms(dt));
+    }
+    return out;
+  }
+
+  private toHms(d: Date): string {
     const hh = d.getHours().toString().padStart(2, '0');
     const mm = d.getMinutes().toString().padStart(2, '0');
+    const ss = d.getSeconds().toString().padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  private extractHms(raw: string): string {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    return this.toHms(d);
+  }
+
+  private formatUsDate(dayYmd: string): string {
+    const d = new Date(dayYmd);
+    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+    const dd = d.getDate().toString().padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+  }
+
+  get displayTime(): string {
+    if (!this.timeInfo) return '';
+    const [hh, mm] = this.timeInfo.split(':');
     return `${hh}:${mm}`;
   }
 
@@ -155,12 +203,13 @@ export class PatientForm {
 
       this.availableSrv.createReservation(payload).subscribe({
         next: () => {
-          alert('  Reservation created successfully.');
-          this.goBack();
+          const d = new Date(this.day);
+          this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
+          this.router.navigate(['/patient/available', this.clinicId, this.doctorId, this.day]);
         },
         error: (err) => {
           console.error('Create reservation error', err);
-          alert('  Failed to create reservation.');
+          alert('❌ Failed to create reservation.');
         },
       });
     } else {

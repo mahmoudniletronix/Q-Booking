@@ -7,17 +7,14 @@ export interface TicketReservationRequest {
   slotTime: string;
   patientName: string;
   phoneNumber: string;
-  serviceId: number;  
+  serviceId: number;
   branchId: number;
   reservationDateBase: string;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class AvailableServices {
   private readonly baseUrl = environment.baseUrl;
-
   constructor(private http: HttpClient) {}
 
   createReservation(payload: TicketReservationRequest): Observable<any> {

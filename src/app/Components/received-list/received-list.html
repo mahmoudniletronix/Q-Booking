@@ -1,7 +1,7 @@
 <div class="container my-4 reserved-page">
   <div class="row">
-    <!-- LEFT: Tickets   -->
-    <div class="col-lg-8 col-12">
+    <!-- LEFT: Tickets -->
+    <div class="col-lg-9 col-12">
       <div class="header-wrap d-flex justify-content-between align-items-center mb-3 flex-wrap">
         <div class="d-flex align-items-center gap-3 flex-wrap">
           <button class="btn-back" (click)="back()">↩</button>
@@ -15,7 +15,6 @@
           </div>
         </div>
 
-        <!-- Right side: Selected count -->
         <div class="muted small-text" *ngIf="items.length">{{ selectedIds.size }} selected</div>
       </div>
 
@@ -27,24 +26,27 @@
           [class.selected]="selectedIds.has(t.id)"
           (click)="onTicketClick(t)"
         >
+          <!-- دائرة الاختيار -->
+          <div class="select-dot" *ngIf="selectedIds.has(t.id)">
+            <div class="dot-inner"></div>
+          </div>
+
           <div class="shine"></div>
 
           <div class="card-top">
             <div class="left">
-              <span class="time">{{ t.timeSlot }}</span>
+              <span class="number text-dark fw-bold">#{{ t.number }}</span>
             </div>
 
             <div class="right">
-              <span class="muted number">#{{ t.number }}</span>
-              <span class="type-chip reserved">Reserved</span>
+              <span class="time muted">{{ format12(t.timeSlot) }}</span>
             </div>
           </div>
 
           <div class="card-mid">
-            <div class="patient text-truncate">{{ t.patientName }}</div>
+            <div class="patient muted text-truncate">{{ t.patientName }}</div>
             <div class="muted small-text">
-              {{ t.phoneNumber }} •
-              {{ t.createDate | date : 'short' }}
+              {{ t.phoneNumber }}
             </div>
           </div>
         </div>
@@ -58,16 +60,14 @@
       </ng-template>
     </div>
 
-    <!-- RIGHT: Actions + Summary (col-4) -->
-    <div class="col-lg-4 d-none d-lg-block">
+    <!-- RIGHT: Actions + Summary -->
+    <div class="col-lg-3 d-none d-lg-block">
       <div class="actions-panel">
-        <!-- Selection Controls -->
         <div class="panel-section">
           <div class="section-title">Selection</div>
           <div class="d-flex align-items-center justify-content-between mb-2">
             <div class="muted">
-              Selected:
-              <strong>{{ selectedIds.size }}</strong> / {{ items.length }}
+              Selected: <strong>{{ selectedIds.size }}</strong> / {{ items.length }}
             </div>
             <div class="d-flex gap-1">
               <button
@@ -90,7 +90,6 @@
           </div>
         </div>
 
-        <!-- Move to another doctor -->
         <div class="panel-section">
           <div class="section-title">Move selected to another doctor</div>
           <select class="form-select form-select-sm mb-2" [(ngModel)]="targetDoctorId">
@@ -109,7 +108,6 @@
           </button>
         </div>
 
-        <!-- Change Day -->
         <div class="panel-section">
           <div class="section-title">Change day</div>
           <input
@@ -120,7 +118,6 @@
           />
         </div>
 
-        <!-- Cancel with Note -->
         <div class="panel-section">
           <div class="section-title">Cancel selected reservations</div>
           <textarea
@@ -139,31 +136,28 @@
           </button>
         </div>
 
-        <!-- Summary of focused ticket -->
         <div class="panel-section" *ngIf="focusedTicket">
           <div class="section-title">Ticket details</div>
           <div class="ticket-summary">
             <div class="d-flex justify-content-between align-items-center mb-1">
               <div class="badge-number">#{{ focusedTicket.number }}</div>
-              <span class="time-pill">{{ focusedTicket.timeSlot }}</span>
+              <span class="time-pill">{{ format12(focusedTicket.timeSlot) }}</span>
             </div>
             <div class="summary-line">
-              <span class="label">Patient:</span>
-              <span class="value">{{ focusedTicket.patientName }}</span>
+              <span class="label">Patient:</span
+              ><span class="value">{{ focusedTicket.patientName }}</span>
             </div>
             <div class="summary-line">
-              <span class="label">Phone:</span>
-              <span class="value">{{ focusedTicket.phoneNumber }}</span>
+              <span class="label">Phone:</span
+              ><span class="value">{{ focusedTicket.phoneNumber }}</span>
             </div>
             <div class="summary-line">
-              <span class="label">Created:</span>
-              <span class="value">
-                {{ focusedTicket.createDate | date : 'short' }}
-              </span>
+              <span class="label">Created:</span
+              ><span class="value">{{ focusedTicket.createDate | date : 'short' }}</span>
             </div>
             <div class="summary-line" *ngIf="focusedTicket.customerInput">
-              <span class="label">Note:</span>
-              <span class="value">{{ focusedTicket.customerInput }}</span>
+              <span class="label">Note:</span
+              ><span class="value">{{ focusedTicket.customerInput }}</span>
             </div>
 
             <div class="d-flex gap-2 mt-3">

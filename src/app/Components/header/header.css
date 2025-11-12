@@ -34,7 +34,7 @@ body,
   font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.5px;
-  font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'DigitalSansEF' !important;
   margin: 0;
 }
 

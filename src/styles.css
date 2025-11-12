@@ -4,23 +4,6 @@
 @font-face {
   font-family: 'DigitalSansEF';
   src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'DigitalSansEF';
-  src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'DigitalSansEF';
-  src: url('assets/font/Digital_Sans_EF_Medium.ttf') format('truetype');
-  font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
@@ -35,12 +18,8 @@ body {
   margin: 0;
   padding: 0;
   color: #111827;
-  background: linear-gradient(
-    0deg,
-    rgba(85, 75, 70, 1) 0%,
-    rgba(242, 100, 38, 1) 50%,
-    rgba(255, 255, 255, 1) 100%
-  ) !important;
+  background: linear-gradient(0deg, #36b9cc 0%, #fff 100%) !important;
+
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-size: cover;
