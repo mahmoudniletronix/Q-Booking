@@ -12,6 +12,8 @@ export class HeaderPathService {
 
   private _branchOverride = signal<string>('');
 
+  // ===== Signals =====
+
   private branchName = computed(() => {
     const id = this.sch.selectedBranchId?.();
     return id ? this.sch.branches()?.find((b) => b.id === id)?.name ?? '' : '';
@@ -30,22 +32,25 @@ export class HeaderPathService {
     return doctors.find((d) => d.id === did)?.name ?? '';
   });
 
-  private pageDateLabel = signal<string>('');
+  private pageLabel = signal<string>('');
 
   readonly path = computed(() => {
     const parts: string[] = [];
+
     const b = (this._branchOverride() || this.branchName()).trim();
     const s = this.clinicName().trim();
     const d = this.doctorName().trim();
-    const day = this.pageDateLabel().trim();
+    const page = this.pageLabel().trim();
 
     if (b) parts.push(b);
     if (s) parts.push(s);
     if (d) parts.push(d);
-    if (day) parts.push(day);
+    if (page) parts.push(page);
 
     const extra = this._extraPath().trim();
-    return extra ? `${parts.join(' / ')} ${extra}` : parts.join(' / ');
+    if (extra) parts.push(extra);
+
+    return parts.join(' / ');
   });
 
   constructor() {
@@ -82,24 +87,22 @@ export class HeaderPathService {
     const snap = route?.snapshot;
     if (!snap) return;
 
-    const dayParam = snap.params?.['day'];
-    if (dayParam) {
-      const dayNum = Number(dayParam);
-      if (!Number.isNaN(dayNum)) {
-        const now = new Date();
-        const dateObj = new Date(now.getFullYear(), now.getMonth(), dayNum);
-        const label = dateObj.toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: '2-digit',
-        });
-        this.pageDateLabel.set(label);
-      } else {
-        this.pageDateLabel.set('');
-      }
+    let page = '';
+
+    const routePath = snap.routeConfig?.path || '';
+    const dataTitle = (snap.data?.['pageTitle'] || '').toString().toLowerCase();
+
+    if (routePath.startsWith('patient/received')) {
+      page = 'Reserved';
+    } else if (routePath.startsWith('patient/available')) {
+      page = 'Available';
     } else {
-      this.pageDateLabel.set('');
+      if (dataTitle.includes('reserved')) page = 'Reserved';
+      else if (dataTitle.includes('available')) page = 'Available';
+      else page = '';
     }
+
+    this.pageLabel.set(page);
   }
 
   private getDeepest(route: ActivatedRoute): ActivatedRoute {

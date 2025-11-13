@@ -8,14 +8,16 @@ import {
   TicketReservation,
   TicketReservationDto,
   TicketPrintDto,
+  TicketReservationUpdateCommand,
 } from '../../service/ticket-reservation/ticket-reservation';
 import { GlobalConfigService } from '../../service/config/global-config-service';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { TicketSearchResultDto } from '../../service/global-search/ticket-search-box';
 
 interface ReservedTicketVm extends TicketReservationDto {
   timeSlot: string;
-} // HH:mm:ss
+}
 
 @Component({
   selector: 'app-received-list',
@@ -29,6 +31,7 @@ export class ReceivedList {
   doctorId!: number;
   day!: string;
   dayLabel = '';
+  ticketId?: number;
 
   items: ReservedTicketVm[] = [];
   loading = false;
@@ -39,8 +42,20 @@ export class ReceivedList {
   targetDoctorId: number | null = null;
   targetDoctors: Doctor[] = [];
 
+  searchMode = false;
+  searchResults: TicketSearchResultDto[] = [];
+  searchTermLabel = '';
+
+  selectedSearchTicket: TicketSearchResultDto | null = null;
+  searchPopupOpen = false;
+
   cancelNote = '';
   orgLogo = '';
+
+  // ✅ متغيرات تعديل السلوِت
+  editingSlot: boolean = false;
+  newSlotValue: string = '';
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -50,10 +65,16 @@ export class ReceivedList {
     private http: HttpClient
   ) {
     this.globalCfg.load().catch(() => {});
+
+    // نقرأ كل البارامترات مرة واحدة (مع ticketId)
     this.route.paramMap.subscribe((p) => {
       this.clinicId = +(p.get('clinicId') || 0);
       this.doctorId = +(p.get('doctorId') || 0);
       this.day = p.get('day') || '';
+
+      const tid = p.get('ticketId');
+      this.ticketId = tid ? Number(tid) : undefined;
+
       this.dayLabel = this.buildDayLabel(this.day);
       this.ensureDoctorsLoaded();
       this.loadReserved();
@@ -87,8 +108,10 @@ export class ReceivedList {
         mapped.sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
         this.items = mapped;
         this.selectedIds.clear();
-        this.focusedTicket = this.items[0] || null;
         this.loading = false;
+
+        // بعد ما البيانات تتحمل نطبق فوكس التذكرة (لو جايين من السيرش)
+        this.applyTicketFocus();
       },
       error: () => {
         this.items = [];
@@ -97,6 +120,98 @@ export class ReceivedList {
         this.loading = false;
       },
     });
+  }
+
+  private applyTicketFocus() {
+    if (this.ticketId && this.items.length) {
+      const match = this.items.find((i) => i.id === this.ticketId);
+      if (match) {
+        this.selectedIds.clear();
+        this.selectedIds.add(match.id);
+        this.focusedTicket = match;
+
+        setTimeout(() => {
+          const el = document.getElementById('ticket-' + match.id);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ticket-focus');
+            setTimeout(() => el.classList.remove('ticket-focus'), 1500);
+          }
+        }, 80);
+
+        return;
+      }
+    }
+
+    if (this.items.length === 1) {
+      this.selectedIds.clear();
+      this.selectedIds.add(this.items[0].id);
+      this.focusedTicket = this.items[0];
+    } else {
+      this.focusedTicket = null;
+      this.selectedIds.clear();
+    }
+  }
+
+  // ======== ✅ تعديل وقت التذكرة (Update slot) =========
+  updateTicketSlot(t: ReservedTicketVm, newSlotHms: string) {
+    const normalized = this.ensureHms(newSlotHms);
+
+    if (!normalized) {
+      alert('برجاء إدخال وقت صالح');
+      return;
+    }
+
+    const cmd: TicketReservationUpdateCommand = {
+      id: t.id,
+      slotTime: normalized,
+      patientName: t.patientName,
+      phoneNumber: t.phoneNumber,
+      serviceId: t.serviceId,
+      branchId: t.branchId,
+      reservationDateBase: t.reservationDate,
+      isCancel: false,
+    };
+
+    this.ticketSrv.updateReservation(cmd).subscribe({
+      next: () => {
+        // نحدّث الـ UI بدون ريلود
+        t.timeSlot = normalized;
+        (t as any).slotTime = normalized; // لو الـ DTO الأصلي فيه slotTime
+      },
+      error: (err) => {
+        console.error('Update ticket error', err);
+        alert('❌ Failed to update ticket.');
+      },
+    });
+  }
+
+  // ======== ✅ دوال التحكم في واجهة تعديل الوقت =========
+
+  startSlotEdit() {
+    if (!this.focusedTicket) return;
+
+    // timeSlot غالبًا "HH:mm:ss" → ناخد "HH:mm"
+    const base = this.focusedTicket.timeSlot || '';
+    this.newSlotValue = base ? base.substring(0, 5) : '';
+    this.editingSlot = true;
+  }
+
+  applySlotChange() {
+    if (!this.focusedTicket) return;
+    if (!this.newSlotValue) return;
+
+    // من "HH:mm" إلى "HH:mm:00"
+    const hms = this.newSlotValue + ':00';
+
+    this.updateTicketSlot(this.focusedTicket, hms);
+    this.editingSlot = false;
+    this.newSlotValue = '';
+  }
+
+  cancelSlotEdit() {
+    this.editingSlot = false;
+    this.newSlotValue = '';
   }
 
   // ================== Helpers ==================
@@ -123,10 +238,11 @@ export class ReceivedList {
 
   private ensureHms(hms: string): string {
     if (!hms) return '';
-    const [hh, mm, ss] = hms.split(':');
-    return `${(hh ?? '00').padStart(2, '0')}:${(mm ?? '00').padStart(2, '0')}:${(
-      ss ?? '00'
-    ).padStart(2, '0')}`;
+    const parts = hms.split(':').map((p) => p.trim());
+    const hh = parts[0] ?? '00';
+    const mm = parts[1] ?? '00';
+    const ss = parts[2] ?? '00';
+    return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:${ss.padStart(2, '0')}`;
   }
 
   private extractTimeHms(raw: string): string {
@@ -153,22 +269,72 @@ export class ReceivedList {
   trackById = (_: number, t: ReservedTicketVm) => t.id;
 
   onTicketClick(t: ReservedTicketVm) {
-    if (this.selectedIds.has(t.id)) this.selectedIds.delete(t.id);
-    else this.selectedIds.add(t.id);
-    this.focusedTicket = t;
+    if (this.selectedIds.has(t.id)) {
+      this.selectedIds.delete(t.id);
+    } else {
+      this.selectedIds.add(t.id);
+    }
+
+    if (this.selectedIds.size === 0) {
+      this.focusedTicket = null;
+      this.editingSlot = false;
+      return;
+    }
+
+    if (this.selectedIds.size === 1) {
+      const onlyId = Array.from(this.selectedIds)[0];
+      this.focusedTicket = this.items.find((i) => i.id === onlyId) || null;
+    } else {
+      this.focusedTicket = null;
+      this.editingSlot = false;
+    }
   }
 
   selectAll() {
     this.selectedIds.clear();
     this.items.forEach((i) => this.selectedIds.add(i.id));
+    this.focusedTicket = null;
+    this.editingSlot = false;
   }
 
   clearSelection() {
     this.selectedIds.clear();
+    this.focusedTicket = null;
+    this.editingSlot = false;
   }
 
   get allSelected(): boolean {
     return this.items.length > 0 && this.selectedIds.size === this.items.length;
+  }
+
+  // ================== Search results (global / local) ==================
+  onSearchResults(results: TicketSearchResultDto[]) {
+    if (!results || !results.length) {
+      this.clearSearchMode();
+      return;
+    }
+
+    this.searchMode = true;
+    this.searchResults = results;
+    this.searchTermLabel =
+      results[0]?.patientName || results[0]?.serviceName || results[0]?.phoneNumber || '';
+  }
+
+  clearSearchMode() {
+    this.searchMode = false;
+    this.searchResults = [];
+    this.searchTermLabel = '';
+    this.selectedSearchTicket = null;
+    this.searchPopupOpen = false;
+  }
+
+  openSearchTicketPopup(t: TicketSearchResultDto) {
+    this.selectedSearchTicket = t;
+    this.searchPopupOpen = true;
+  }
+
+  closeSearchTicketPopup() {
+    this.searchPopupOpen = false;
   }
 
   // ================== Move / Cancel ==================
@@ -195,7 +361,9 @@ export class ReceivedList {
   }
 
   onDayChange(newDay: string) {
-    if (newDay) this.router.navigate(['/patient/received', this.clinicId, this.doctorId, newDay]);
+    if (newDay) {
+      this.router.navigate(['/patient/received', this.clinicId, this.doctorId, newDay]);
+    }
   }
 
   canCancel(): boolean {
@@ -206,12 +374,13 @@ export class ReceivedList {
     if (!this.canCancel()) return;
     const ids = Array.from(this.selectedIds);
     const note = this.cancelNote.trim();
+
     this.ticketSrv.bulkCancel(ids, note).subscribe({
       next: () => {
-        const d = new Date(this.day);
-        this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
+        this.items = this.items.filter((t) => !ids.includes(t.id));
+        this.selectedIds.clear();
         this.cancelNote = '';
-        this.loadReserved();
+        this.focusedTicket = null;
       },
       error: (err) => {
         console.error('Cancel tickets error', err);
@@ -220,15 +389,14 @@ export class ReceivedList {
     });
   }
 
-  // ================== PRINT (Preview) ==================
-  async printTicket(t: ReservedTicketVm) {
+  // ================== PRINT helpers ==================
+  private async printByReservationId(reservationId: number) {
     try {
-      const blob = await this.ticketSrv.printFromReservation(t.id).toPromise();
+      const blob = await this.ticketSrv.printFromReservation(reservationId).toPromise();
       if (!blob) return;
 
       const contentType = (blob.type || '').toLowerCase();
 
-      // PDF -> iframe preview
       if (contentType.includes('pdf')) {
         const url = URL.createObjectURL(blob);
         this.openPreviewWindow(
@@ -239,7 +407,6 @@ export class ReceivedList {
         return;
       }
 
-      // JSON -> build dark template
       let asJson: any = null;
       try {
         const txt = await blob.text();
@@ -268,6 +435,14 @@ export class ReceivedList {
     }
   }
 
+  async printTicket(t: ReservedTicketVm) {
+    await this.printByReservationId(t.id);
+  }
+
+  async printSearchTicket(t: TicketSearchResultDto) {
+    await this.printByReservationId(t.id);
+  }
+
   private openPreviewWindow(title: string, bodyInnerHtml: string, opts?: { autoPrint?: boolean }) {
     const w = window.open('', '_blank', 'width=720,height=900');
     if (!w) return;
@@ -284,7 +459,7 @@ export class ReceivedList {
     .btn-print{background:#22c55e;color:#fff}
     .btn-close{background:#ef4444;color:#fff}
 
-    .content{margin-top:48px;display:flex;justify-content:center}
+    .content{display:flex;justify-content:center}
     .print-wrap{display:flex;justify-content:center;width:100%}
      .print-page{
       width:80mm; background:#fff;
@@ -294,7 +469,6 @@ export class ReceivedList {
     @media print{
       @page { size:80mm auto; margin:0 }   
       .toolbar{display:none}
-      .content{margin-top:0}
       html,body{width:80mm}
       .print-page{width:80mm;padding:0}    
       img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
@@ -347,24 +521,31 @@ export class ReceivedList {
 
   private buildLegacyTicketHtml(dto: TicketPrintDto): string {
     const orgLogo = this.makeAbsoluteUrl(this.globalCfg.orgLogo());
-    const service = dto.serviceEnglishName ?? '';
-    const branch = dto.branchName ?? '';
+
+    const doctorName = dto.serviceArabicName || dto.serviceEnglishName || '';
+
+    const clinicName = dto.parentServiceArabicName || dto.parentServiceEnglishName || '';
+
+    const branch = dto.branchNameAr || dto.branchNameEn || dto.branchName || '';
+
     const wait = dto.waitingCount ?? 0;
+    const avgWait = dto.averageWaitingTime;
+    const phone = dto.customerInput || '';
 
     return `
   <style>
     html, body {
       margin: 0;
-      padding: 0;            
+      padding: 0;
       font-family: "Tajawal","Segoe UI",Arial,sans-serif;
       -webkit-font-smoothing: antialiased;
       color: #000;
       background: #fff;
     }
 
-     .ticket {
+    .ticket {
       margin: 0 auto;
-      padding: 0 0 2mm 0;    
+      padding: 0 0 2mm 0;
       background: #fff;
       page-break-inside: avoid;
       break-inside: avoid;
@@ -380,16 +561,34 @@ export class ReceivedList {
     }
 
     .header {
-      display: flex;
+       display: flex;
       justify-content: space-between;
-      font-size: 9pt;
+      font-size: 11pt;
       color: #444;
       padding: 0 6mm;
-      margin-bottom: 2mm;
+      margin: 1mm 0 4mm;
     }
 
-    .service { font-size: 12pt; font-weight: 700; line-height: 1.3; }
-    .num     { font-size: 22pt; font-weight: 800; margin: 1mm 0 3mm; letter-spacing: .5pt; }
+    .patient {
+      font-size: 14pt;
+      font-weight: 800;
+      line-height: 1.3;
+      margin-bottom: 1mm;
+    }
+
+    .clinic {
+      font-size: 10pt;
+      font-weight: 400;
+      line-height: 1.3;
+      margin-bottom: 1.5mm;
+    }
+
+    .num {
+      font-size: 27pt;
+      font-weight: 700;
+      margin: 1mm 0 -5mm;
+      letter-spacing: .5pt;
+    }
 
     .info {
       text-align: right;
@@ -399,7 +598,7 @@ export class ReceivedList {
       line-height: 1.6;
     }
     .label { font-weight: 700; }
-    .value { font-weight: 500; }
+    .value { font-weight: normal; }
 
     .site {
       margin: 0 auto;
@@ -410,7 +609,7 @@ export class ReceivedList {
       width: 100%;
       height: 1px;
       background: #000;
-      margin: 2mm 0 1.5mm 0;   
+      margin: 2mm 0 1.5mm 0;
       display: block;
     }
     .site-text {
@@ -440,16 +639,33 @@ export class ReceivedList {
       <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
     </div>
 
-    <div class="service">${service}</div>
-    <div class="num">${dto.number ?? ''}</div>
+    <div class="clinic">${clinicName}</div>
+    <div class="patient">د / ${doctorName} </div>
 
+    <br />
+    <div class="num">${dto.number ?? ''}</div>
+    <br />
+    ${phone ? `<div><span class="value">${phone}</span></div>` : ''}
+    <br />
     <div class="info">
-      <div><span class="label">الفرع:</span> <span class="value">${branch}</span></div>
-      <div><span class="label">عملاء منتظرين:</span> <span class="value">${wait}</span></div>
+      <div>
+        <span class="label">الفرع: </span>
+        <span class="value">${branch}</span>
+      </div>
+
+      <div>
+        <span class="label">عملاء منتظرين: </span>
+        <span class="value">${wait}</span>
+      </div>
+
+      ${
+        avgWait != null
+          ? `<div><span class="label">متوسط وقت الانتظار: </span> <span class="value">${avgWait} دقيقة</span></div>`
+          : ''
+      }
     </div>
 
     <div class="site">
-      <div class="site-border"></div>
       <div class="site-text">www.Niletronix.com</div>
     </div>
   </div>
@@ -457,6 +673,10 @@ export class ReceivedList {
   }
 
   editTicket(t: ReservedTicketVm) {
+    this.router.navigate(['/ticket-reservation/edit', t.id]);
+  }
+
+  editSearchTicket(t: TicketSearchResultDto) {
     this.router.navigate(['/ticket-reservation/edit', t.id]);
   }
 

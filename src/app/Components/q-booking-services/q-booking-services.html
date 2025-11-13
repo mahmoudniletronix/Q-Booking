@@ -49,7 +49,7 @@
           <label class="form-label small mb-1">Operator</label>
           <select
             class="form-select form-select-sm"
-            [ngModel]="filter.operatorId"
+            [(ngModel)]="filter.operatorId"
             (ngModelChange)="onOperatorChange($event)"
             [disabled]="!sch.selectedClinicId()"
           >
@@ -63,7 +63,7 @@
           </select>
         </div>
 
-        <!-- Search + Reset -->
+        <!-- Local doctor search -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
           <div class="d-flex justify-content-between align-items-center">
             <label class="form-label small mb-1 mb-0">Search</label>
@@ -93,92 +93,328 @@
         </div>
       </div>
 
-      <!-- Schedule Table -->
-      <div *ngIf="sch.selectedClinicId() as clinicId">
-        <ng-container *ngIf="filteredClinicDoctors.length > 0; else noResults">
-          <div class="schedule-wrap">
-            <div class="table-responsive rounded-3 border schedule-viewport">
-              <div class="month-nav">
-                <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="prevMonth()">
-                  <i class="bi bi-chevron-left"></i>
-                </button>
+      <!-- Doctor Search Strips -->
+      <div *ngIf="doctorSearchMode">
+        <div class="fw-semibold mb-2">Search Results:</div>
 
-                <div class="month-label fw-semibold">
-                  {{ monthLabel }}
-                </div>
+        <div class="strip-grid">
+          <div
+            class="result-strip"
+            *ngFor="let r of doctorSearchResults"
+            (click)="openDoctorFromSearch(r)"
+          >
+            <div class="strip-main">
+              <span class="strip-title">
+                {{ r.serviceArabicName || r.serviceEnglishName }}
+              </span>
+            </div>
 
-                <button type="button" class="btn btn-light btn-sm nav-arrow" (click)="nextMonth()">
-                  <i class="bi bi-chevron-right"></i>
-                </button>
-              </div>
+            <div class="strip-meta">
+              <span class="badge bg-light text-dark">
+                {{ r.parentServiceArabicName || r.parentServiceEnglishName }}
+              </span>
 
-              <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
-                <thead class="table-light sticky-top">
-                  <tr>
-                    <th class="first-col sticky-col text-center">Day</th>
-                    <th
-                      *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
-                      class="text-center doctor-header sticky-top"
-                    >
-                      <div class="doctor-name" [title]="d.name">
-                        {{ d.name }}
-                      </div>
-                      <!-- <div class="doctor-meta small text-muted">30 min / slot</div> -->
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  <tr *ngFor="let day of visibleDays; trackBy: trackByDay">
-                    <th class="first-col sticky-col text-center">
-                      {{ day.label }}
-                    </th>
-
-                    <td
-                      *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
-                      class="text-center schedule-cell"
-                    >
-                      <ng-container *ngIf="counts(clinicId, d.id, day) as c">
-                        <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
-                          <button
-                            class="pill pill-reserved"
-                            type="button"
-                            [title]="c.reserved + ' reserved'"
-                            (click)="onReservedClick(clinicId, d, day)"
-                          >
-                            <span class="num">{{ c.reserved }}</span>
-                            <span class="label">Reserved</span>
-                          </button>
-
-                          <button
-                            class="pill pill-available"
-                            type="button"
-                            [title]="'Available: ' + c.available"
-                            (click)="onAvailableClick(clinicId, d, day)"
-                          >
-                            <span class="num">{{ c.available }}</span>
-                            <span class="label">Available</span>
-                          </button>
-                        </div>
-                      </ng-container>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <span class="badge bg-primary-subtle text-primary">
+                {{ r.branchNameAr || r.branchNameEn }}
+              </span>
             </div>
           </div>
-        </ng-container>
+        </div>
+
+        <div class="small text-muted mt-1">اضغط لفتح جدول مواعيد الطبيب</div>
       </div>
 
-      <ng-template #noResults>
-        <div class="no-results text-center text-muted py-5">
-          لا توجد نتائج مطابقة لبحثك. جرّب تعديل البحث
+      <!-- ================= GLOBAL SEARCH STRIPS ================= -->
+      <!-- لو في نتائج جلوبال سيرش: اعرض strips مكان الجدول -->
+      <div *ngIf="searchStripMode && globalSearchResults.length; else scheduleContent">
+        <div class="search-strips mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">
+              Search Results:
+              <span class="text-primary">
+                "{{ globalSearchQuery }}" ({{ globalSearchResults.length }} result{{
+                  globalSearchResults.length > 1 ? 's' : ''
+                }})
+              </span>
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              (click)="exitSearchMode()"
+            >
+              ⬅ Back to Schedule
+            </button>
+          </div>
+
+          <div class="strip-grid">
+            <div
+              class="result-strip"
+              *ngFor="let r of globalSearchResults"
+              (click)="openSearchTicketPopup(r)"
+            >
+              <div class="strip-main">
+                <div>
+                  <span class="strip-title">
+                    {{ r.patientName || 'بدون اسم مريض' }}
+                  </span>
+                  <span class="ms-3 phoneNumber" *ngIf="r.customerInput">
+                    {{ r.customerInput }}
+                  </span>
+
+                  <span class="strip-ticket ms-2">#{{ r.number }}</span>
+                </div>
+
+                <div>
+                  <span class="badge" [ngClass]="getStatusClass(r)">
+                    {{ getStatusLabel(r) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="strip-meta">
+                <span class="badge bg-light text-dark me-2">
+                  Branch: {{ r.branchName }} (ID: {{ r.branchId }})
+                </span>
+                <span class="badge bg-light text-dark me-2">
+                  Specialization: {{ r.serviceParentName }}
+                </span>
+                <span class="badge bg-primary-subtle text-primary">
+                  Doctor: {{ r.serviceName }}
+                </span>
+              </div>
+
+              <div class="strip-meta2">
+                <span class="slotTime">
+                  📅 {{ r.reservationDate | date : 'yyyy-MM-dd' }} — 🕒
+                  {{ r.slotTime }}
+                </span>
+                <span class="mx-2" *ngIf="r.createDate">
+                  ⏱️ Created: {{ r.createDate | date : 'short' }}
+                </span>
+                <!-- <span *ngIf="r.phoneNumber">📞 {{ r.phoneNumber }}</span> -->
+              </div>
+
+              <div class="strip-meta3 mt-1">
+                <!-- extra -->
+              </div>
+            </div>
+          </div>
+
+          <div class="small text-muted mt-1">
+            Click on any strip to view all ticket details and available actions.
+          </div>
         </div>
+      </div>
+
+      <!-- ================= SCHEDULE TABLE ================= -->
+      <ng-template #scheduleContent>
+        <!-- Schedule Table -->
+        <div *ngIf="sch.selectedClinicId() as clinicId">
+          <ng-container *ngIf="filteredClinicDoctors.length > 0; else noResults">
+            <div class="schedule-wrap">
+              <div class="table-responsive rounded-3 border schedule-viewport">
+                <div class="month-nav">
+                  <button
+                    type="button"
+                    class="btn btn-light btn-sm nav-arrow"
+                    (click)="prevMonth()"
+                  >
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+
+                  <div class="month-label fw-semibold">
+                    {{ monthLabel }}
+                  </div>
+
+                  <button
+                    type="button"
+                    class="btn btn-light btn-sm nav-arrow"
+                    (click)="nextMonth()"
+                  >
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+
+                <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th class="first-col sticky-col text-center">Day</th>
+                      <th
+                        *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
+                        class="text-center doctor-header sticky-top"
+                      >
+                        <div class="doctor-name" [title]="d.name">
+                          {{ d.name }}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <tr *ngFor="let day of visibleDays; trackBy: trackByDay">
+                      <th class="first-col sticky-col text-center">
+                        {{ day.label }}
+                      </th>
+
+                      <td
+                        *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
+                        class="text-center schedule-cell"
+                      >
+                        <ng-container *ngIf="counts(clinicId, d.id, day) as c">
+                          <div class="stats-row" *ngIf="c.total > 0; else emptyCell">
+                            <button
+                              class="pill pill-reserved"
+                              type="button"
+                              [title]="c.reserved + ' reserved'"
+                              (click)="onReservedClick(clinicId, d, day)"
+                            >
+                              <span class="num">{{ c.reserved }}</span>
+                              <span class="label">Reserved</span>
+                            </button>
+
+                            <button
+                              class="pill pill-available"
+                              type="button"
+                              [title]="'Available: ' + c.available"
+                              (click)="onAvailableClick(clinicId, d, day)"
+                            >
+                              <span class="num">{{ c.available }}</span>
+                              <span class="label">Available</span>
+                            </button>
+                          </div>
+                        </ng-container>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+
+        <ng-template #noResults>
+          <div class="no-results text-center text-muted py-5">
+            لا توجد نتائج مطابقة لبحثك. جرّب تعديل البحث
+          </div>
+        </ng-template>
+
+        <ng-template #emptyCell>
+          <div class="empty-cell">-</div>
+        </ng-template>
       </ng-template>
 
-      <ng-template #emptyCell>
-        <div class="empty-cell">-</div>
-      </ng-template>
+      <!-- ============= POPUPFOR GLOBAL SEARCH TICKET ============= -->
+      <div class="search-modal-backdrop" *ngIf="searchPopupOpen && selectedSearchTicket as p">
+        <div class="search-modal">
+          <div class="modal-header d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <div class="fw-semibold">Ticket #{{ p.number }}</div>
+              <div class="text-muted small">
+                {{ p.patientName || p.serviceName || p.phoneNumber }}
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary"
+              (click)="closeSearchTicketPopup()"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="modal-body">
+            <div class="row g-2">
+              <div class="col-6">
+                <div class="label">Ticket ID</div>
+                <div class="value">{{ p.id }}</div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Status</div>
+                <div class="value">
+                  <span class="badge" [ngClass]="getStatusClass(p)">
+                    {{ getStatusLabel(p) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Branch</div>
+                <div class="value">{{ p.branchName }} (ID: {{ p.branchId }})</div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Specialization</div>
+                <div class="value">{{ p.serviceParentName }}</div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Doctor</div>
+                <div class="value">{{ p.serviceName }} (ID: {{ p.serviceId }})</div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Reservation date</div>
+                <div class="value">
+                  {{ p.reservationDate | date : 'yyyy-MM-dd' }} — {{ p.slotTime }}
+                </div>
+              </div>
+
+              <div class="col-6" *ngIf="p.createDate">
+                <div class="label">Created at</div>
+                <div class="value">
+                  {{ p.createDate | date : 'short' }}
+                </div>
+              </div>
+
+              <div class="col-6" *ngIf="p.serviceWorkFlow">
+                <div class="label">Workflow</div>
+                <div class="value">{{ p.serviceWorkFlow }}</div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Patient</div>
+                <div class="value">
+                  {{ p.patientName || 'بدون اسم' }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <div class="label">Phone</div>
+                <div class="value">
+                  {{ p.phoneNumber || '—' }}
+                </div>
+              </div>
+
+              <div class="col-12" *ngIf="p.customerInput">
+                <div class="label">Note</div>
+                <div class="value">{{ p.customerInput }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer d-flex gap-2 mt-3">
+            <button
+              type="button"
+              class="btn btn-sm btn-primary flex-fill"
+              (click)="editSearchTicket(p)"
+              [disabled]="isMissedTicket(p)"
+            >
+              Edit ticket
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-sm btn-success flex-fill"
+              (click)="printSearchTicket(p)"
+              [disabled]="isMissedTicket(p) && isTicketActionsDisabled(p)"
+            >
+              Print
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

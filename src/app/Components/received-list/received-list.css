@@ -44,6 +44,7 @@
   padding: 12px 14px;
   transition: all 0.18s ease;
   cursor: pointer;
+  min-width: 170px;
 }
 
 .res-card:hover {
@@ -308,8 +309,8 @@
 }
 .select-dot {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 0px;
+  left: 0px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
@@ -330,4 +331,10 @@
 .res-card.selected {
   border-color: #22c55e;
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25), 0 8px 26px rgba(51, 31, 7, 0.18);
+}
+.ticket-card.focused,
+.ticket-focus {
+  outline: 2px solid #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
+  border-radius: 10px;
 }

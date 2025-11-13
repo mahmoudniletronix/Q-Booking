@@ -2,10 +2,11 @@ import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HeaderPathService } from '../../service/HeaderPathService/HeaderPath-Service';
 import { GlobalConfigService } from '../../service/config/global-config-service';
+import { TicketSearchBox } from "../ticket-search-box/ticket-search-box";
 
 @Component({
   selector: 'app-header',
-  imports: [CommonModule],
+  imports: [CommonModule, TicketSearchBox],
   templateUrl: './header.html',
   styleUrl: './header.css',
 })

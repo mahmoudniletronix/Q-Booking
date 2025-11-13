@@ -1,0 +1,15 @@
+<div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12 search-box">
+  <div class="input-group input-group-sm">
+    <span class="input-group-text">
+      <i class="bi bi-search"></i>
+    </span>
+    <input
+      type="text"
+      class="form-control"
+      name="globalSearch"
+      [(ngModel)]="searchTerm"
+      (input)="onInput($event.target.value)"
+      placeholder="Search patients, doctors, phone, number.."
+    />
+  </div>
+</div>

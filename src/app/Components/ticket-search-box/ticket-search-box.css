@@ -1,0 +1,108 @@
+.search-box {
+  position: relative;
+  width: 100%;
+}
+
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  z-index: 1050;
+}
+
+.dropdown-inner {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.search-loading,
+.search-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* List styles */
+.search-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px dashed rgba(226, 232, 240, 0.9);
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.search-item:last-child {
+  border-bottom: none;
+}
+
+.search-item:hover {
+  background: #f9fafb;
+  transform: translateY(-1px);
+}
+
+/* Lines */
+.line-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.doctor-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.ticket-number {
+  font-weight: 600;
+  font-size: 11px;
+  color: #4b5563;
+}
+
+/* badges */
+.line-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge-clinic {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+}
+
+.badge-branch {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+.line-sub2,
+.line-sub3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: #6b7280;
+}

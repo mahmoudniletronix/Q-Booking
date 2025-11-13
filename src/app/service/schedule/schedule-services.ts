@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environment/environment';
-import { Subject } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 
 export type TicketStatus = 'Received' | 'Not Received';
 
@@ -154,6 +154,20 @@ export class ScheduleServices {
       this.loadSpecializationsByBranch(id);
     }
   }
+  doctorSearch(term: string) {
+    if (!term || term.trim().length < 1) {
+      return new Observable<any[]>((obs) => {
+        obs.next([]);
+        obs.complete();
+      });
+    }
+
+    const url =
+      `${environment.baseUrl}/ticket-reservation/daily/monthly-by-search?searchTerm=` +
+      encodeURIComponent(term);
+
+    return this.http.get<any[]>(url);
+  }
 
   private loadBranches(): void {
     this._branchesLoading.set(true);
@@ -212,16 +226,35 @@ export class ScheduleServices {
   }
 
   loadSchedule(clinicId: number, year: number, month: number, searchTerm?: string): void {
-    if (!clinicId || !year || !month) return;
+    if (!year || !month) return;
 
-    let url = `${environment.baseUrl}/ticket-reservation/get-schedule?serviceid=${clinicId}&year=${year}&month=${month}`;
     const trimmed = (searchTerm ?? '').trim();
-    if (trimmed) url += `&searchTerm=${encodeURIComponent(trimmed)}`;
+    let url: string;
+
+    if (trimmed) {
+      url =
+        `${environment.baseUrl}/ticket-reservation/daily/monthly-by-search` +
+        `?year=${year}&month=${month}&searchTerm=${encodeURIComponent(trimmed)}`;
+    } else {
+      if (!clinicId) return;
+      url =
+        `${environment.baseUrl}/ticket-reservation/get-schedule` +
+        `?serviceid=${clinicId}&year=${year}&month=${month}`;
+    }
+
     url += `&ts=${Date.now()}`;
 
-    this.http.get<{ item: ScheduleApiItem[] }>(url).subscribe({
+    this.http.get<any>(url).subscribe({
       next: (res) => {
-        const items = res?.item || [];
+        const items: ScheduleApiItem[] = Array.isArray(res) ? res : res?.item ?? res?.items ?? [];
+
+        if (!items || !items.length) {
+          this.countsCache[clinicId] = {};
+          this.metaCache[clinicId] = {};
+          this.scheduleChanged$.next({ clinicId, year, month });
+          return;
+        }
+
         const clinic = this.clinics.find((c) => c.id === clinicId);
         if (!clinic) return;
 
@@ -238,7 +271,9 @@ export class ScheduleServices {
           const dayKey = this.normalizeDateKey(row.day);
           if (!dayKey) continue;
 
-          if (!doctorMap[doctorId]) doctorMap[doctorId] = { id: doctorId, name: doctorName };
+          if (!doctorMap[doctorId]) {
+            doctorMap[doctorId] = { id: doctorId, name: doctorName };
+          }
           if (!clinicCounts[doctorId]) clinicCounts[doctorId] = {};
           if (!clinicMeta[doctorId]) clinicMeta[doctorId] = {};
 
@@ -268,6 +303,7 @@ export class ScheduleServices {
         clinic.doctors = Object.values(doctorMap).sort((a, b) =>
           a.name.localeCompare(b.name, 'ar')
         );
+
         this.countsCache[clinicId] = clinicCounts;
         this.metaCache[clinicId] = clinicMeta;
 
@@ -310,7 +346,6 @@ export class ScheduleServices {
     return this.metaCache[clinicId]?.[doctorId]?.[dayKey] ?? null;
   }
 
-  // ===== Helpers =====
   getDayNameFor(
     _c: number,
     _d: number,

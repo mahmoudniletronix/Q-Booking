@@ -25,8 +25,9 @@
           *ngFor="let t of items; trackBy: trackById"
           [class.selected]="selectedIds.has(t.id)"
           (click)="onTicketClick(t)"
+          [attr.id]="'ticket-' + t.id"
+          [class.focused]="focusedTicket?.id === t.id"
         >
-          <!-- دائرة الاختيار -->
           <div class="select-dot" *ngIf="selectedIds.has(t.id)">
             <div class="dot-inner"></div>
           </div>
@@ -89,6 +90,25 @@
             </div>
           </div>
         </div>
+        <button
+          type="button"
+          class="btn btn-xs btn-outline-light flex-fill bg-warning"
+          *ngIf="focusedTicket && !editingSlot"
+          (click)="startSlotEdit()"
+        >
+          Change Slot
+        </button>
+        <div class="d-flex align-items-center gap-2" *ngIf="editingSlot">
+          <input type="time" class="form-control form-control-sm" [(ngModel)]="newSlotValue" />
+
+          <button type="button" class="btn btn-sm btn-success" (click)="applySlotChange()">
+            Save
+          </button>
+
+          <button type="button" class="btn btn-sm btn-secondary" (click)="cancelSlotEdit()">
+            Cancel
+          </button>
+        </div>
 
         <div class="panel-section">
           <div class="section-title">Move selected to another doctor</div>
@@ -136,7 +156,7 @@
           </button>
         </div>
 
-        <div class="panel-section" *ngIf="focusedTicket">
+        <div class="panel-section" *ngIf="focusedTicket && selectedIds.size === 1">
           <div class="section-title">Ticket details</div>
           <div class="ticket-summary">
             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -163,10 +183,10 @@
             <div class="d-flex gap-2 mt-3">
               <button
                 type="button"
-                class="btn btn-xs btn-outline-light flex-fill bg-success"
+                class="btn btn-xs btn-outline-light flex-fill bg-danger"
                 (click)="editTicket(focusedTicket)"
               >
-                Edit
+                Cancel
               </button>
               <button
                 type="button"
@@ -179,7 +199,7 @@
           </div>
         </div>
 
-        <div class="panel-empty" *ngIf="!focusedTicket && items.length">
+        <div class="panel-empty" *ngIf="!focusedTicket && items.length && selectedIds.size <= 1">
           Click any ticket on the left to view details here.
         </div>
       </div>
