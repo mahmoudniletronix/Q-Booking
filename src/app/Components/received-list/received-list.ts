@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 
-import { ScheduleServices, Doctor } from '../../service/schedule/schedule-services';
+import { ScheduleServices, Doctor, Slot } from '../../service/schedule/schedule-services';
 import {
   TicketReservation,
   TicketReservationDto,
@@ -11,12 +11,20 @@ import {
   TicketReservationUpdateCommand,
 } from '../../service/ticket-reservation/ticket-reservation';
 import { GlobalConfigService } from '../../service/config/global-config-service';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { forkJoin, firstValueFrom } from 'rxjs';
 import { TicketSearchResultDto } from '../../service/global-search/ticket-search-box';
+import { AppToastService } from '../../service/Toastr/app-toast.service';
 
 interface ReservedTicketVm extends TicketReservationDto {
   timeSlot: string;
+}
+
+interface DoctorDayOption {
+  dateYmd: string;
+  dayText: string;
+  reserved: number;
+  available: number;
+  startText: string;
 }
 
 @Component({
@@ -33,6 +41,12 @@ export class ReceivedList {
   dayLabel = '';
   ticketId?: number;
 
+  newDayValue = '';
+
+  targetDoctorDays: DoctorDayOption[] = [];
+  selectedTargetDay: string | null = null;
+  targetDaySlots: string[] = [];
+  selectedTargetSlot: string | null = null;
   items: ReservedTicketVm[] = [];
   loading = false;
 
@@ -45,16 +59,19 @@ export class ReceivedList {
   searchMode = false;
   searchResults: TicketSearchResultDto[] = [];
   searchTermLabel = '';
-
   selectedSearchTicket: TicketSearchResultDto | null = null;
   searchPopupOpen = false;
 
   cancelNote = '';
-  orgLogo = '';
 
-  // ✅ متغيرات تعديل السلوِت
-  editingSlot: boolean = false;
-  newSlotValue: string = '';
+  editingSlot = false;
+  newSlotValue = '';
+
+  ticketMoveSlots: { [id: number]: string | null } = {};
+
+  get selectedTickets(): ReservedTicketVm[] {
+    return this.items.filter((i) => this.selectedIds.has(i.id));
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -62,11 +79,10 @@ export class ReceivedList {
     public sch: ScheduleServices,
     private ticketSrv: TicketReservation,
     private globalCfg: GlobalConfigService,
-    private http: HttpClient
+    private toast: AppToastService
   ) {
     this.globalCfg.load().catch(() => {});
 
-    // نقرأ كل البارامترات مرة واحدة (مع ticketId)
     this.route.paramMap.subscribe((p) => {
       this.clinicId = +(p.get('clinicId') || 0);
       this.doctorId = +(p.get('doctorId') || 0);
@@ -75,14 +91,23 @@ export class ReceivedList {
       const tid = p.get('ticketId');
       this.ticketId = tid ? Number(tid) : undefined;
 
+      if (this.clinicId) {
+        this.sch.setSelectedClinic(this.clinicId);
+        localStorage.setItem('qbook.clinicId', String(this.clinicId));
+      }
+      if (this.doctorId) {
+        this.sch.setSelectedDoctor(this.doctorId);
+        localStorage.setItem('qbook.doctorId', String(this.doctorId));
+      }
+
       this.dayLabel = this.buildDayLabel(this.day);
       this.ensureDoctorsLoaded();
       this.loadReserved();
-      this.orgLogo = this.globalCfg.orgLogo();
     });
   }
 
   // ================== Load ==================
+
   private ensureDoctorsLoaded() {
     const existed = this.sch.getDoctorsByClinic(this.clinicId);
     if (!existed || !existed.length) {
@@ -94,6 +119,7 @@ export class ReceivedList {
 
   private loadReserved() {
     if (!this.doctorId || !this.day) return;
+
     const apiDateUs = this.formatUsDate(this.day);
     this.loading = true;
 
@@ -105,19 +131,22 @@ export class ReceivedList {
             ? this.ensureHms(x.slotTime)
             : this.extractTimeHms(x.reservationDate),
         }));
+
         mapped.sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+
         this.items = mapped;
         this.selectedIds.clear();
         this.loading = false;
 
-        // بعد ما البيانات تتحمل نطبق فوكس التذكرة (لو جايين من السيرش)
         this.applyTicketFocus();
       },
-      error: () => {
+      error: (err) => {
+        console.error('Load reserved tickets error', err);
         this.items = [];
         this.selectedIds.clear();
         this.focusedTicket = null;
         this.loading = false;
+        this.toast.error('Failed to load today reservations. Please try again later.');
       },
     });
   }
@@ -153,12 +182,12 @@ export class ReceivedList {
     }
   }
 
-  // ======== ✅ تعديل وقت التذكرة (Update slot) =========
-  updateTicketSlot(t: ReservedTicketVm, newSlotHms: string) {
-    const normalized = this.ensureHms(newSlotHms);
+  // ================== (Change Slot) ==================
 
+  private updateTicketSlot(t: ReservedTicketVm, newSlotHms: string) {
+    const normalized = this.ensureHms(newSlotHms);
     if (!normalized) {
-      alert('برجاء إدخال وقت صالح');
+      this.toast.warning('Please enter a valid time.');
       return;
     }
 
@@ -175,35 +204,27 @@ export class ReceivedList {
 
     this.ticketSrv.updateReservation(cmd).subscribe({
       next: () => {
-        // نحدّث الـ UI بدون ريلود
         t.timeSlot = normalized;
-        (t as any).slotTime = normalized; // لو الـ DTO الأصلي فيه slotTime
+        (t as any).slotTime = normalized;
+        // success toast is handled inside the service
       },
       error: (err) => {
         console.error('Update ticket error', err);
-        alert('❌ Failed to update ticket.');
+        this.toast.error('Failed to update reservation time. Please try again later.');
       },
     });
   }
 
-  // ======== ✅ دوال التحكم في واجهة تعديل الوقت =========
-
   startSlotEdit() {
     if (!this.focusedTicket) return;
-
-    // timeSlot غالبًا "HH:mm:ss" → ناخد "HH:mm"
     const base = this.focusedTicket.timeSlot || '';
     this.newSlotValue = base ? base.substring(0, 5) : '';
     this.editingSlot = true;
   }
 
   applySlotChange() {
-    if (!this.focusedTicket) return;
-    if (!this.newSlotValue) return;
-
-    // من "HH:mm" إلى "HH:mm:00"
+    if (!this.focusedTicket || !this.newSlotValue) return;
     const hms = this.newSlotValue + ':00';
-
     this.updateTicketSlot(this.focusedTicket, hms);
     this.editingSlot = false;
     this.newSlotValue = '';
@@ -215,6 +236,7 @@ export class ReceivedList {
   }
 
   // ================== Helpers ==================
+
   private buildDayLabel(raw: string): string {
     const d = new Date(raw);
     if (!isNaN(d.getTime())) {
@@ -265,7 +287,20 @@ export class ReceivedList {
     return `${h}:${m} ${ampm}`;
   }
 
+  private buildReservationDateBase(newDay: string, t: ReservedTicketVm): string {
+    const timeHms = this.ensureHms(t.timeSlot || this.extractTimeHms(t.reservationDate));
+    return `${newDay}T${timeHms}`;
+  }
+
+  private toYmd(date: Date): string {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   // ================== Selection ==================
+
   trackById = (_: number, t: ReservedTicketVm) => t.id;
 
   onTicketClick(t: ReservedTicketVm) {
@@ -295,19 +330,26 @@ export class ReceivedList {
     this.items.forEach((i) => this.selectedIds.add(i.id));
     this.focusedTicket = null;
     this.editingSlot = false;
+
+    this.ticketMoveSlots = {};
+    this.selectedTargetSlot = null;
   }
 
   clearSelection() {
     this.selectedIds.clear();
     this.focusedTicket = null;
     this.editingSlot = false;
+
+    this.ticketMoveSlots = {};
+    this.selectedTargetSlot = null;
   }
 
   get allSelected(): boolean {
     return this.items.length > 0 && this.selectedIds.size === this.items.length;
   }
 
-  // ================== Search results (global / local) ==================
+  // ================== Search results ==================
+
   onSearchResults(results: TicketSearchResultDto[]) {
     if (!results || !results.length) {
       this.clearSearchMode();
@@ -338,32 +380,91 @@ export class ReceivedList {
   }
 
   // ================== Move / Cancel ==================
+
   canMove(): boolean {
-    return (
-      this.selectedIds.size > 0 && !!this.targetDoctorId && this.targetDoctorId !== this.doctorId
-    );
-  }
-
-  moveSelected() {
-    if (!this.canMove() || !this.targetDoctorId) return;
-    const ids = Array.from(this.selectedIds);
-    this.ticketSrv.bulkMove(ids, this.targetDoctorId!).subscribe({
-      next: () => {
-        const d = new Date(this.day);
-        this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
-        this.loadReserved();
-      },
-      error: (err) => {
-        console.error('Move tickets error', err);
-        alert('❌ Failed to move selected tickets.');
-      },
-    });
-  }
-
-  onDayChange(newDay: string) {
-    if (newDay) {
-      this.router.navigate(['/patient/received', this.clinicId, this.doctorId, newDay]);
+    if (
+      this.selectedIds.size === 0 ||
+      !this.targetDoctorId ||
+      this.targetDoctorId === this.doctorId ||
+      !this.selectedTargetDay ||
+      !this.targetDaySlots.length
+    ) {
+      return false;
     }
+
+    if (this.selectedIds.size === 1) {
+      return !!this.selectedTargetSlot;
+    }
+
+    for (const id of this.selectedIds) {
+      const v = this.ticketMoveSlots[id];
+      if (!v) return false;
+    }
+
+    return true;
+  }
+
+  async moveSelected() {
+    if (
+      !this.targetDoctorId ||
+      !this.selectedTargetDay ||
+      !this.targetDaySlots.length ||
+      this.selectedIds.size === 0
+    ) {
+      return;
+    }
+
+    const newServiceId = this.targetDoctorId;
+    const ids = Array.from(this.selectedIds);
+    const targetDay = this.selectedTargetDay;
+
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const t = this.items.find((x) => x.id === id);
+      if (!t) continue;
+
+      let slotHms: string | null = null;
+
+      if (this.selectedIds.size === 1) {
+        slotHms = this.selectedTargetSlot || null;
+      } else {
+        slotHms = this.ticketMoveSlots[id] || null;
+      }
+
+      if (!slotHms) {
+        continue;
+      }
+
+      const normalizedSlot = this.ensureHms(slotHms);
+      const reservationDateBase = this.buildReservationDateBase(targetDay, t);
+
+      const cmd: TicketReservationUpdateCommand = {
+        id: t.id,
+        slotTime: normalizedSlot,
+        patientName: t.patientName,
+        phoneNumber: t.phoneNumber,
+        serviceId: newServiceId,
+        branchId: t.branchId,
+        reservationDateBase,
+        isCancel: false,
+      };
+
+      try {
+        await firstValueFrom(this.ticketSrv.updateReservation(cmd));
+
+        if (i < ids.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      } catch (err) {
+        console.error('Move tickets error', err);
+        this.toast.error('Failed to move selected reservations. Please try again later.');
+        break;
+      }
+    }
+
+    const d = new Date(this.day);
+    this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
+    this.loadReserved();
   }
 
   canCancel(): boolean {
@@ -372,6 +473,7 @@ export class ReceivedList {
 
   cancelSelected() {
     if (!this.canCancel()) return;
+
     const ids = Array.from(this.selectedIds);
     const note = this.cancelNote.trim();
 
@@ -384,12 +486,61 @@ export class ReceivedList {
       },
       error: (err) => {
         console.error('Cancel tickets error', err);
-        alert('❌ Failed to cancel selected tickets.');
+        this.toast.error('Failed to cancel selected reservations. Please try again later.');
+      },
+    });
+  }
+
+  // ================== Change Day ==================
+
+  canChangeDay(): boolean {
+    return !!this.newDayValue && this.selectedIds.size > 0;
+  }
+
+  changeDay() {
+    if (!this.canChangeDay()) return;
+
+    const newDay = this.newDayValue;
+    const ids = Array.from(this.selectedIds);
+
+    const requests = ids
+      .map((id) => {
+        const t = this.items.find((x) => x.id === id);
+        if (!t) return null;
+
+        const timeHms = this.ensureHms(t.timeSlot || this.extractTimeHms(t.reservationDate));
+
+        const cmd: TicketReservationUpdateCommand = {
+          id: t.id,
+          slotTime: timeHms,
+          patientName: t.patientName,
+          phoneNumber: t.phoneNumber,
+          serviceId: t.serviceId,
+          branchId: t.branchId,
+          isCancel: false,
+          reservationDateBase: this.buildReservationDateBase(newDay, t),
+        };
+
+        return this.ticketSrv.updateReservation(cmd);
+      })
+      .filter((x): x is ReturnType<TicketReservation['updateReservation']> => !!x);
+
+    if (!requests.length) return;
+
+    forkJoin(requests).subscribe({
+      next: () => {
+        this.day = newDay;
+        this.loadReserved();
+      },
+      error: (err) => {
+        console.error('Change day error', err);
+        this.toast.error('Failed to change day for selected reservations. Please try again later.');
       },
     });
   }
 
   // ================== PRINT helpers ==================
+
   private async printByReservationId(reservationId: number) {
     try {
       const blob = await this.ticketSrv.printFromReservation(reservationId).toPromise();
@@ -415,6 +566,7 @@ export class ReceivedList {
       } catch {
         asJson = null;
       }
+
       if (asJson && asJson.number) {
         const inner = this.buildLegacyTicketHtml(asJson as TicketPrintDto);
         this.openPreviewWindow(`#${asJson.number}`, inner, { autoPrint: true });
@@ -431,7 +583,7 @@ export class ReceivedList {
       );
     } catch (err) {
       console.error('Print error', err);
-      alert('❌ Failed to open print preview.');
+      this.toast.error('Failed to open ticket print preview. Please try again later.');
     }
   }
 
@@ -448,74 +600,74 @@ export class ReceivedList {
     if (!w) return;
 
     const css = `
-    *{box-sizing:border-box}
-    html,body{margin:0;font-family:"Tajawal","Segoe UI",Arial;-webkit-font-smoothing:antialiased}
-    .toolbar{
-      position:fixed;top:0;left:0;right:0;background:#111;color:#fff;
-      padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10
-    }
-    .toolbar .title{font-weight:700;margin-inline-end:auto}
-    .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
-    .btn-print{background:#22c55e;color:#fff}
-    .btn-close{background:#ef4444;color:#fff}
+      *{box-sizing:border-box}
+      html,body{margin:0;font-family:"Tajawal","Segoe UI",Arial;-webkit-font-smoothing:antialiased}
+      .toolbar{
+        position:fixed;top:0;left:0;right:0;background:#111;color:#fff;
+        padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10
+      }
+      .toolbar .title{font-weight:700;margin-inline-end:auto}
+      .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+      .btn-print{background:#22c55e;color:#fff}
+      .btn-close{background:#ef4444;color:#fff}
 
-    .content{display:flex;justify-content:center}
-    .print-wrap{display:flex;justify-content:center;width:100%}
-     .print-page{
-      width:80mm; background:#fff;
-      page-break-inside:avoid;break-inside:avoid;
-     }
+      .content{display:flex;justify-content:center}
+      .print-wrap{display:flex;justify-content:center;width:100%}
+      .print-page{
+        width:80mm; background:#fff;
+        page-break-inside:avoid;break-inside:avoid;
+      }
 
-    @media print{
-      @page { size:80mm auto; margin:0 }   
-      .toolbar{display:none}
-      html,body{width:80mm}
-      .print-page{width:80mm;padding:0}    
-      img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
-    }
-  `;
+      @media print{
+        @page { size:80mm auto; margin:0 }   
+        .toolbar{display:none}
+        html,body{width:80mm}
+        .print-page{width:80mm;padding:0}    
+        img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+      }
+    `;
 
     const printScript = `
-    <script>
-      (function(){
-        function waitImages(){
-          const imgs=[...document.images];
-          return Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;})));
-        }
-        async function ready(){ try{await waitImages();}catch{} }
-        ${
-          opts?.autoPrint === false
-            ? ''
-            : `if(document.readyState==="complete") ready(); else addEventListener('load',ready,{once:true});`
-        }
-      })();
-    <\/script>
-  `;
+      <script>
+        (function(){
+          function waitImages(){
+            const imgs=[...document.images];
+            return Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;})));
+          }
+          async function ready(){ try{await waitImages();}catch{} }
+          ${
+            opts?.autoPrint === false
+              ? ''
+              : `if(document.readyState==="complete") ready(); else addEventListener('load',ready,{once:true});`
+          }
+        })();
+      <\/script>
+    `;
 
     w.document.open();
     w.document.write(`
-    <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="utf-8"/><title>${title}</title>
-        <style>${css}</style>
-      </head>
-      <body>
-        <div class="toolbar">
-          <div class="title">${title}</div>
-          <button class="btn-print" onclick="print()">Print</button>
-          <button class="btn-close" onclick="close()">Close</button>
-        </div>
-        <div class="content">
-          <div class="print-wrap">
-            <div class="print-page">
-              ${bodyInnerHtml}
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="utf-8"/><title>${title}</title>
+          <style>${css}</style>
+        </head>
+        <body>
+          <div class="toolbar">
+            <div class="title">${title}</div>
+            <button class="btn-print" onclick="print()">Print</button>
+            <button class="btn-close" onclick="close()">Close</button>
+          </div>
+          <div class="content">
+            <div class="print-wrap">
+              <div class="print-page">
+                ${bodyInnerHtml}
+              </div>
             </div>
           </div>
-        </div>
-        ${printScript}
-      </body>
-    </html>
-  `);
+          ${printScript}
+        </body>
+      </html>
+    `);
     w.document.close();
   }
 
@@ -523,9 +675,7 @@ export class ReceivedList {
     const orgLogo = this.makeAbsoluteUrl(this.globalCfg.orgLogo());
 
     const doctorName = dto.serviceArabicName || dto.serviceEnglishName || '';
-
     const clinicName = dto.parentServiceArabicName || dto.parentServiceEnglishName || '';
-
     const branch = dto.branchNameAr || dto.branchNameEn || dto.branchName || '';
 
     const wait = dto.waitingCount ?? 0;
@@ -533,143 +683,135 @@ export class ReceivedList {
     const phone = dto.customerInput || '';
 
     return `
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      font-family: "Tajawal","Segoe UI",Arial,sans-serif;
-      -webkit-font-smoothing: antialiased;
-      color: #000;
-      background: #fff;
-    }
-
-    .ticket {
-      margin: 0 auto;
-      padding: 0 0 2mm 0;
-      background: #fff;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      text-align: center;
-    }
-
-    .logo { margin: 2mm 0 2mm; }
-    .logo img {
-      display: block;
-      margin: 0 auto;
-      max-width: 70mm;
-      max-height: 55mm;
-    }
-
-    .header {
-       display: flex;
-      justify-content: space-between;
-      font-size: 11pt;
-      color: #444;
-      padding: 0 6mm;
-      margin: 1mm 0 4mm;
-    }
-
-    .patient {
-      font-size: 14pt;
-      font-weight: 800;
-      line-height: 1.3;
-      margin-bottom: 1mm;
-    }
-
-    .clinic {
-      font-size: 10pt;
-      font-weight: 400;
-      line-height: 1.3;
-      margin-bottom: 1.5mm;
-    }
-
-    .num {
-      font-size: 27pt;
-      font-weight: 700;
-      margin: 1mm 0 -5mm;
-      letter-spacing: .5pt;
-    }
-
-    .info {
-      text-align: right;
-      width: 90%;
-      margin: 0 auto 3mm;
-      font-size: 10pt;
-      line-height: 1.6;
-    }
-    .label { font-weight: 700; }
-    .value { font-weight: normal; }
-
-    .site {
-      margin: 0 auto;
-      text-align: center;
-      border-top: 1px solid #000;
-    }
-    .site-border {
-      width: 100%;
-      height: 1px;
-      background: #000;
-      margin: 2mm 0 1.5mm 0;
-      display: block;
-    }
-    .site-text {
-      font-size: 9pt;
-      font-weight: 500;
-      color: #000;
-      direction: ltr;
-      letter-spacing: .3pt;
-    }
-
-    @page { size: 80mm auto; margin: 0; }
-
-    @media print {
-      html, body { width: 80mm; margin: 0; padding: 0; }
-      .ticket    { width: 80mm; margin: 0; padding: 0 0 2mm 0; }
-      img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    }
-  </style>
-
-  <div class="ticket">
-    <div class="logo">
-      <img src="${orgLogo}" alt="logo" />
-    </div>
-
-    <div class="header">
-      <span style="color:#000; margin-right: 20px">${dto.printTime ?? ''}</span>
-      <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
-    </div>
-
-    <div class="clinic">${clinicName}</div>
-    <div class="patient">د / ${doctorName} </div>
-
-    <br />
-    <div class="num">${dto.number ?? ''}</div>
-    <br />
-    ${phone ? `<div><span class="value">${phone}</span></div>` : ''}
-    <br />
-    <div class="info">
-      <div>
-        <span class="label">الفرع: </span>
-        <span class="value">${branch}</span>
-      </div>
-
-      <div>
-        <span class="label">عملاء منتظرين: </span>
-        <span class="value">${wait}</span>
-      </div>
-
-      ${
-        avgWait != null
-          ? `<div><span class="label">متوسط وقت الانتظار: </span> <span class="value">${avgWait} دقيقة</span></div>`
-          : ''
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: "Tajawal","Segoe UI",Arial,sans-serif;
+        -webkit-font-smoothing: antialiased;
+        color: #000;
+        background: #fff;
       }
-    </div>
 
-    <div class="site">
-      <div class="site-text">www.Niletronix.com</div>
+      .ticket {
+        margin: 0 auto;
+        padding: 0 0 2mm 0;
+        background: #fff;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        text-align: center;
+      }
+
+      .logo { margin: 2mm 0 2mm; }
+      .logo img {
+        display: block;
+        margin: 0 auto;
+        max-width: 70mm;
+        max-height: 55mm;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11pt;
+        color: #444;
+        padding: 0 6mm;
+        margin: 1mm 0 4mm;
+      }
+
+      .patient {
+        font-size: 14pt;
+        font-weight: 800;
+        line-height: 1.3;
+        margin-bottom: 1mm;
+      }
+
+      .clinic {
+        font-size: 10pt;
+        font-weight: 400;
+        line-height: 1.3;
+        margin-bottom: 1.5mm;
+      }
+
+      .num {
+        font-size: 27pt;
+        font-weight: 700;
+        margin: 1mm 0 -5mm;
+        letter-spacing: .5pt;
+      }
+
+      .info {
+        text-align: right;
+        width: 90%;
+        margin: 0 auto 3mm;
+        font-size: 10pt;
+        line-height: 1.6;
+      }
+      .label { font-weight: 700; }
+      .value { font-weight: normal; }
+
+      .site {
+        margin: 0 auto;
+        text-align: center;
+      }
+      .site-text {
+        font-size: 9pt;
+        font-weight: 500;
+        color: #000;
+        direction: ltr;
+        letter-spacing: .3pt;
+      }
+
+      @page { size: 80mm auto; margin: 0; }
+
+      @media print {
+        html, body { width: 80mm; margin: 0; padding: 0; }
+        .ticket    { width: 80mm; margin: 0; padding: 0 0 2mm 0; }
+        img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+
+    <div class="ticket">
+      <div class="logo">
+        <img src="${orgLogo}" alt="logo" />
+      </div>
+
+      <div class="header">
+        <span style="color:#000; margin-right: 20px">${dto.printTime ?? ''}</span>
+        <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
+      </div>
+
+      <div class="clinic">${clinicName}</div>
+      <div class="patient">د / ${doctorName} </div>
+
+      <br />
+      <div class="num">${dto.number ?? ''}</div>
+      <br />
+      ${phone ? `<div><span class="value">${phone}</span></div>` : ''}
+      <br />
+      <div class="info">
+        <div>
+          <span class="label">الفرع: </span>
+          <span class="value">${branch}</span>
+        </div>
+
+        <div>
+          <span class="label">عملاء منتظرين: </span>
+          <span class="value">${wait}</span>
+        </div>
+
+        ${
+          avgWait != null
+            ? `<div><span class="label">متوسط وقت الانتظار: </span> <span class="value">${avgWait} دقيقة</span></div>`
+            : ''
+        }
+      </div>
+
+      <div class="site">
+        <div class="site-text">www.Niletronix.com</div>
+      </div>
     </div>
-  </div>
-  `;
+    `;
   }
 
   editTicket(t: ReservedTicketVm) {
@@ -696,6 +838,150 @@ export class ReceivedList {
     const origin = window.location.origin.replace(/\/+$/, '');
     const path = String(src).replace(/^\/+/, '');
     return `${origin}/${path}`;
+  }
+
+  // ================== Target doctor days ==================
+  onTargetDoctorChange(id: number | null) {
+    this.targetDoctorId = id;
+    this.selectedTargetDay = null;
+    this.targetDoctorDays = [];
+
+    this.selectedTargetSlot = null;
+    this.targetDaySlots = [];
+    this.ticketMoveSlots = {};
+
+    if (!id) return;
+
+    this.loadTargetDoctorDays(id);
+  }
+
+  private loadTargetDoctorSlots(doctorId: number, dayYmd: string) {
+    this.targetDaySlots = [];
+    this.selectedTargetSlot = null;
+    this.ticketMoveSlots = {};
+    const dt = new Date(dayYmd);
+    if (isNaN(dt.getTime())) return;
+
+    this.targetDaySlots = [];
+    this.selectedTargetSlot = null;
+
+    const year = dt.getFullYear();
+    const month = dt.getMonth() + 1;
+
+    this.sch.loadSchedule(this.clinicId, year, month);
+
+    const meta = this.sch.getDayMeta(this.clinicId, doctorId, dt);
+    if (!meta) {
+      console.warn('No day meta found for target doctor/day');
+      return;
+    }
+
+    const slotMinutes = meta.waitingDurationMinutes || 30;
+
+    const allSlots: string[] = [];
+
+    const [startH, startM] = (meta.firstStart || '00:00:00')
+      .split(':')
+      .map((p) => parseInt(p, 10) || 0);
+    const [endH, endM] = (meta.lastFinish || '23:59:59')
+      .split(':')
+      .map((p) => parseInt(p, 10) || 0);
+
+    const cursor = new Date(dt);
+    cursor.setHours(startH, startM, 0, 0);
+
+    const end = new Date(dt);
+    end.setHours(endH, endM, 0, 0);
+
+    while (cursor <= end) {
+      const hh = cursor.getHours().toString().padStart(2, '0');
+      const mm = cursor.getMinutes().toString().padStart(2, '0');
+      allSlots.push(`${hh}:${mm}:00`);
+      cursor.setTime(cursor.getTime() + slotMinutes * 60_000);
+    }
+
+    const dateUs = this.formatUsDate(dayYmd);
+
+    this.ticketSrv.getByServiceAndDate(doctorId, dateUs).subscribe({
+      next: (reservations) => {
+        const reservedSet = new Set(
+          (reservations || []).map((r) =>
+            this.ensureHms(r.slotTime?.trim() ? r.slotTime : this.extractTimeHms(r.reservationDate))
+          )
+        );
+
+        this.targetDaySlots = allSlots.filter((s) => !reservedSet.has(this.ensureHms(s)));
+      },
+      error: (err) => {
+        console.error('loadTargetDoctorSlots error', err);
+        this.targetDaySlots = [];
+      },
+    });
+  }
+
+  onTargetDayChange(dayYmd: string | null) {
+    this.selectedTargetDay = dayYmd;
+    this.selectedTargetSlot = null;
+    this.targetDaySlots = [];
+    this.ticketMoveSlots = {};
+
+    if (!dayYmd || !this.targetDoctorId) return;
+
+    this.loadTargetDoctorSlots(this.targetDoctorId, dayYmd);
+  }
+
+  private loadTargetDoctorDays(doctorId: number) {
+    if (!this.day) return;
+
+    const baseDate = new Date(this.day);
+    if (isNaN(baseDate.getTime())) return;
+
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth() + 1;
+    const lastDay = new Date(year, month, 0).getDate();
+
+    const today = new Date();
+    let startDay = 1;
+    if (today.getFullYear() === year && today.getMonth() === month - 1) {
+      startDay = today.getDate();
+    }
+
+    const options: DoctorDayOption[] = [];
+
+    for (let dayNum = startDay; dayNum <= lastDay; dayNum++) {
+      const dt = new Date(year, month - 1, dayNum);
+
+      const stats = this.sch.countsFor(this.clinicId, doctorId, dt);
+      if (!stats.total) continue;
+
+      const ymd = this.toYmd(dt);
+
+      const dayText = dt.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+      });
+
+      const meta = this.sch.getDayMeta(this.clinicId, doctorId, dt);
+      const startHms =
+        meta?.firstStart || (meta?.shifts && meta.shifts[0]?.startFrom) || '00:00:00';
+
+      const startText = this.format12(startHms);
+
+      options.push({
+        dateYmd: ymd,
+        dayText,
+        reserved: stats.reserved,
+        available: stats.available,
+        startText,
+      });
+    }
+
+    this.targetDoctorDays = options;
+
+    const currentYmd = this.toYmd(baseDate);
+    const currentDayOption = options.find((o) => o.dateYmd === currentYmd);
+    this.selectedTargetDay = currentDayOption ? currentDayOption.dateYmd : null;
   }
 
   back() {

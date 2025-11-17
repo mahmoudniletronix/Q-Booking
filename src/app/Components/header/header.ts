@@ -1,29 +1,50 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HeaderPathService } from '../../service/HeaderPathService/HeaderPath-Service';
 import { GlobalConfigService } from '../../service/config/global-config-service';
-import { TicketSearchBox } from "../ticket-search-box/ticket-search-box";
+import { TicketSearchBox } from '../ticket-search-box/ticket-search-box';
 
 @Component({
   selector: 'app-header',
+  standalone: true,
   imports: [CommonModule, TicketSearchBox],
   templateUrl: './header.html',
   styleUrl: './header.css',
 })
 export class Header {
-  private headerPathService = inject(HeaderPathService);
-  private globalConfig = inject(GlobalConfigService);
+  headerSegments: string[] = [];
 
-  headerPath = computed(() => this.headerPathService.path());
+  constructor(private headerPath: HeaderPathService, private globalConfig: GlobalConfigService) {
+    effect(() => {
+      const full = this.headerPath.path();
+      this.headerSegments = full
+        ? full
+            .split('/')
+            .map((p) => p.trim())
+            .filter(Boolean)
+        : [];
+    });
+  }
 
-  orgName = this.globalConfig.orgName;
-  orgLogo = this.globalConfig.orgLogo;
+  orgLogo() {
+    return this.globalConfig.orgLogo();
+  }
 
-  get headerSegments(): string[] {
-    const path = this.headerPath() || '';
-    return path
-      .split('/')
-      .map((p) => p.trim())
-      .filter((p) => !!p);
+  orgName() {
+    return this.globalConfig.orgName();
+  }
+
+  onPathClick(index: number) {
+    const lastIndex = this.headerSegments.length - 1;
+
+    if (index === lastIndex) {
+      return;
+    }
+
+    const steps = index - lastIndex;
+
+    if (typeof window !== 'undefined' && window.history) {
+      window.history.go(steps);
+    }
   }
 }

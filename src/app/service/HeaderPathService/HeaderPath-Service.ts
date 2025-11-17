@@ -9,10 +9,10 @@ export class HeaderPathService {
   private sch = inject(ScheduleServices);
 
   private _extraPath = signal<string>('');
-
   private _branchOverride = signal<string>('');
+  private _doctorOverride = signal<string>('');
 
-  // ===== Signals =====
+  private pageLabel = signal<string>('');
 
   private branchName = computed(() => {
     const id = this.sch.selectedBranchId?.();
@@ -28,18 +28,19 @@ export class HeaderPathService {
     const cid = this.sch.selectedClinicId?.();
     const did = this.sch.selectedDoctorId?.();
     if (!cid || !did) return '';
-    const doctors = this.sch.clinics?.find((c) => c.id === cid)?.doctors ?? [];
-    return doctors.find((d) => d.id === did)?.name ?? '';
-  });
 
-  private pageLabel = signal<string>('');
+    const doctors = this.sch.clinics?.find((c) => c.id === cid)?.doctors ?? [];
+    const rawName = doctors.find((d) => d.id === did)?.name ?? '';
+
+    return this.cleanDoctorPrefix(rawName);
+  });
 
   readonly path = computed(() => {
     const parts: string[] = [];
 
     const b = (this._branchOverride() || this.branchName()).trim();
     const s = this.clinicName().trim();
-    const d = this.doctorName().trim();
+    const d = (this._doctorOverride() || this.doctorName()).trim();
     const page = this.pageLabel().trim();
 
     if (b) parts.push(b);
@@ -47,13 +48,12 @@ export class HeaderPathService {
     if (d) parts.push(d);
     if (page) parts.push(page);
 
-    const extra = this._extraPath().trim();
-    if (extra) parts.push(extra);
-
     return parts.join(' / ');
   });
 
   constructor() {
+    this.restoreFromStorage();
+
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       this.updateFromRoute();
     });
@@ -63,7 +63,29 @@ export class HeaderPathService {
       void this.branchName();
       void this.clinicName();
       void this.doctorName();
+      void this._doctorOverride();
     });
+  }
+
+  private restoreFromStorage() {
+    const savedBranchId = Number(localStorage.getItem('qbook.branchId') || 0);
+    const savedClinicId = Number(localStorage.getItem('qbook.clinicId') || 0);
+    const savedDoctorId = Number(localStorage.getItem('qbook.doctorId') || 0);
+
+    if (savedBranchId) {
+      this.sch.setSelectedBranch(savedBranchId);
+    }
+    if (savedClinicId) {
+      this.sch.setSelectedClinic(savedClinicId);
+    }
+    if (savedDoctorId) {
+      this.sch.setSelectedDoctor(savedDoctorId);
+    }
+  }
+
+  private cleanDoctorPrefix(name: string): string {
+    if (!name) return '';
+    return name.replace(/^\s*د[\/\.]?\s*/u, '').trim();
   }
 
   setExtraPath(path: string) {
@@ -77,9 +99,15 @@ export class HeaderPathService {
     const clean = (path || '').split('/').pop()?.trim() ?? '';
     this._branchOverride.set(clean);
   }
-
   clearBranchPath() {
     this._branchOverride.set('');
+  }
+
+  setDoctorPath(name: string) {
+    this._doctorOverride.set(this.cleanDoctorPrefix(name));
+  }
+  clearDoctorPath() {
+    this._doctorOverride.set('');
   }
 
   private updateFromRoute() {

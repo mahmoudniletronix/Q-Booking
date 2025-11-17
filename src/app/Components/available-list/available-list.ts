@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, ViewChild, OnInit, OnDestroy } from '@angular/core';
 import { ScheduleServices, Slot, Ticket } from '../../service/schedule/schedule-services';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -11,6 +11,8 @@ import {
   AvailableServices,
   TicketReservationRequest,
 } from '../../service/available/available-services';
+import { Subscription } from 'rxjs';
+import { AppToastService } from '../../service/Toastr/app-toast.service';
 
 @Component({
   selector: 'app-available-list',
@@ -19,11 +21,13 @@ import {
   templateUrl: './available-list.html',
   styleUrl: './available-list.css',
 })
-export class AvailableList {
+export class AvailableList implements OnInit, OnDestroy {
   clinicId!: number;
   doctorId!: number;
   day!: string;
   dayName!: string;
+
+  routeSub!: Subscription;
 
   slots: Slot[] = [];
   loading = false;
@@ -34,6 +38,8 @@ export class AvailableList {
 
   model: Ticket = { id: 0, patient: '', phone: '', status: 'Received' };
 
+  lastCreatedTicket: TicketReservationDto | null = null;
+
   @ViewChild('formCard') formCard!: ElementRef<HTMLDivElement>;
   @ViewChild('patientInput') patientInput!: ElementRef<HTMLInputElement>;
 
@@ -42,34 +48,91 @@ export class AvailableList {
     private router: Router,
     public sch: ScheduleServices,
     private ticketSrv: TicketReservation,
-    private availableSrv: AvailableServices
+    private availableSrv: AvailableServices,
+    private toast: AppToastService
   ) {
-    this.route.paramMap.subscribe((p) => {
+    this.routeSub = this.route.paramMap.subscribe((p) => {
       this.clinicId = +(p.get('clinicId') || 0);
       this.doctorId = +(p.get('doctorId') || 0);
       this.day = p.get('day') || '';
-      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
-      this.loadSlots();
+
+      if (this.clinicId) {
+        this.sch.setSelectedClinic(this.clinicId);
+        localStorage.setItem('qbook.clinicId', String(this.clinicId));
+      }
+      if (this.doctorId) {
+        this.sch.setSelectedDoctor(this.doctorId);
+        localStorage.setItem('qbook.doctorId', String(this.doctorId));
+      }
+
       this.clearSelection();
+      this.slots = [];
+      this.lastCreatedTicket = null;
+
+      if (!this.clinicId || !this.doctorId || !this.day) {
+        this.loading = false;
+        return;
+      }
+
+      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
+
+      this.loading = true;
+      this.loadSlots();
     });
   }
 
+  ngOnInit(): void {
+    this.routeSub = this.route.paramMap.subscribe((p) => {
+      this.clinicId = +(p.get('clinicId') || 0);
+      this.doctorId = +(p.get('doctorId') || 0);
+      this.day = p.get('day') || '';
+
+      this.clearSelection();
+      this.slots = [];
+      this.lastCreatedTicket = null;
+
+      if (!this.clinicId || !this.doctorId || !this.day) {
+        this.loading = false;
+        return;
+      }
+
+      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
+
+      this.loading = true;
+      this.loadSlots();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.routeSub?.unsubscribe();
+  }
+
+  // ====================== loadSlots ======================
   private loadSlots() {
     this.slots = [];
-    if (!this.clinicId || !this.doctorId || !this.day) return;
 
-    const dateObj = new Date(this.day);
-    const stats = this.sch.countsFor(this.clinicId, this.doctorId, dateObj);
-    if (!stats.total) return;
+    if (!this.clinicId || !this.doctorId || !this.day) {
+      this.loading = false;
+      return;
+    }
 
-    const meta = this.sch.getDayMeta(this.clinicId, this.doctorId, this.day);
-    const durationMin = meta?.waitingDurationMinutes ?? 30;
-    const start = this.combine(this.day, meta?.firstStart ?? '00:00:00');
-    const end = this.combine(this.day, meta?.lastFinish ?? '23:59:59');
+    let meta = this.sch.getDayMeta(this.clinicId, this.doctorId, this.day);
+
+    if (!meta) {
+      meta = {
+        waitingDurationMinutes: 30,
+        firstStart: '09:00:00',
+        lastFinish: '17:00:00',
+        shifts: [],
+      };
+    }
+
+    const durationMin = meta.waitingDurationMinutes ?? 30;
+    const start = this.combine(this.day, meta.firstStart || '09:00:00');
+    const end = this.combine(this.day, meta.lastFinish || '17:00:00');
 
     const allTimes: string[] = this.generateTimes(start, end, durationMin);
 
-    this.loading = true;
     const apiDate = this.formatUsDate(this.day);
 
     this.ticketSrv.getByServiceAndDate(this.doctorId, apiDate).subscribe({
@@ -102,6 +165,7 @@ export class AvailableList {
       error: (err) => {
         console.error('Failed to load reservations for slots', err);
         this.loading = false;
+        this.toast.error('Failed to load available slots. Please try again later.');
       },
     });
   }
@@ -158,6 +222,24 @@ export class AvailableList {
     return s.type === 'received' || !!s.ticket;
   }
 
+  // summary helpers
+  summaryDate(t: TicketReservationDto | null): string {
+    if (!t) return '';
+    const d = new Date(t.reservationDate);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  }
+
+  summaryTime(t: TicketReservationDto | null): string {
+    if (!t) return '';
+    const raw = t.slotTime || this.extractTime(t.reservationDate);
+    return this.formatTime(raw);
+  }
+
   // ====================== Interaction ======================
   onSlotClick(s: Slot) {
     if (this.isReserved(s)) return;
@@ -189,7 +271,10 @@ export class AvailableList {
 
   save() {
     if (!this.selectedSlot) return;
-    if (!this.model.patient || !this.model.phone) return;
+    if (!this.model.patient || !this.model.phone) {
+      this.toast.warning('Please enter both patient name and phone number.');
+      return;
+    }
 
     const payload: TicketReservationRequest = {
       slotTime: this.selectedSlot.timeSlot,
@@ -201,17 +286,29 @@ export class AvailableList {
     };
 
     this.availableSrv.createReservation(payload).subscribe({
-      next: () => {
+      next: (created) => {
+        // store last created ticket for summary
+        this.lastCreatedTicket = created;
+
+        // refresh schedule so time slots are updated
         const d = new Date(this.day);
         this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
         this.loadSlots();
-        this.clearSelection();
-        this.router.navigate(['']);
-        alert('✅ Reservation created successfully.');
+
+        // reset form but keep selected slot in case user wants to add more
+        this.model = {
+          id: 0,
+          patient: '',
+          phone: '',
+          status: 'Received',
+          timeSlot: this.timeInfo,
+        };
+
+        this.toast.success('Reservation created successfully.');
       },
       error: (err) => {
         console.error('Reservation error', err);
-        alert('❌ Failed to create reservation.');
+        this.toast.error('Failed to create reservation. Please try again later.');
       },
     });
   }

@@ -16,7 +16,9 @@
 
       <h4 class="mb-0 header-path" *ngIf="headerSegments.length">
         <ng-container *ngFor="let part of headerSegments; let i = index">
-          <span class="path-segment">{{ part }}</span>
+          <span class="path-segment" (click)="onPathClick(i)">
+            {{ part }}
+          </span>
           <span *ngIf="i < headerSegments.length - 1" class="path-separator">
             <i class="bi bi-chevron-right"></i>
           </span>

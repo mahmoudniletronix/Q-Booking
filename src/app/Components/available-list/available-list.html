@@ -31,7 +31,7 @@
             <div class="card-bottom">
               <ng-template #reservedInfo>
                 <div class="reserved-label">
-                  <span class="ico">✅</span>
+                  <span class="ico"></span>
                   {{ s.ticket?.patient || 'Booked' }}
                 </div>
               </ng-template>
@@ -50,14 +50,15 @@
       </div>
 
       <div class="col-lg-3 col-md-5">
+        <!-- ====== Form ====== -->
         <div class="patient-form-page" *ngIf="selectedSlot; else detailsHint">
           <div class="patient-card shadow-lg border-0" #formCard>
             <div class="card-body p-3 p-md-4">
               <div class="form-header mb-3">
                 <h5 class="form-title mb-1">
-                  <span class="accent">{{
-                    mode === 'add' ? 'Add New Appointment' : 'Edit Appointment'
-                  }}</span>
+                  <span class="accent">
+                    {{ mode === 'add' ? 'Add New Appointment' : 'Edit Appointment' }}
+                  </span>
                 </h5>
                 <div class="slot-label">
                   <strong> Schedule: </strong>
@@ -121,6 +122,40 @@
             </div>
           </div>
         </ng-template>
+
+        <!-- ====== Summary ====== -->
+        <div class="ticket-summary-card mt-3" *ngIf="lastCreatedTicket as t">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-3">
+              <h6 class="mb-3 fw-semibold">Last created ticket</h6>
+
+              <div class="summary-row d-flex justify-content-between mb-1">
+                <span class="label text-muted">Number</span>
+                <span class="value fw-semibold">{{ t.number }}</span>
+              </div>
+
+              <div class="summary-row d-flex justify-content-between mb-1">
+                <span class="label text-muted">Patient</span>
+                <span class="value">{{ t.patientName }}</span>
+              </div>
+
+              <div class="summary-row d-flex justify-content-between mb-1">
+                <span class="label text-muted">Phone</span>
+                <span class="value">{{ t.phoneNumber }}</span>
+              </div>
+
+              <div class="summary-row d-flex justify-content-between mb-1">
+                <span class="label text-muted">Date</span>
+                <span class="value">{{ summaryDate(t) }}</span>
+              </div>
+
+              <div class="summary-row d-flex justify-content-between mb-1">
+                <span class="label text-muted">Time</span>
+                <span class="value">{{ summaryTime(t) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

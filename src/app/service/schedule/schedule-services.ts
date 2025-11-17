@@ -1,9 +1,16 @@
-import { Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../environment/environment';
-import { Observable, Subject } from 'rxjs';
+import { map, Observable, Subject } from 'rxjs';
+import { AppToastService } from '../Toastr/app-toast.service';
 
 export type TicketStatus = 'Received' | 'Not Received';
+
+interface ApiResponseArray<T> {
+  isSuccess: boolean;
+  response: T[];
+  errors: string[];
+}
 
 export interface Ticket {
   id: number;
@@ -80,6 +87,8 @@ export class ScheduleServices {
     this.selectedDoctorId.set(id);
   }
 
+  toast = inject(AppToastService);
+
   private readonly _branches = signal<Branch[]>([]);
   private readonly _branchesLoading = signal<boolean>(false);
   branches = this._branches;
@@ -89,6 +98,11 @@ export class ScheduleServices {
 
   private countsCache: Record<number, Record<number, Record<string, DayStats>>> = {};
   private metaCache: Record<number, Record<number, Record<string, DayMeta>>> = {};
+
+  private lastScheduleRequest: Record<
+    number,
+    { year: number; month: number; searchTerm?: string }
+  > = {};
 
   readonly scheduleChanged$ = new Subject<{ clinicId: number; year: number; month: number }>();
 
@@ -112,9 +126,12 @@ export class ScheduleServices {
   ];
   private readonly _clinicsLoading = signal<boolean>(false);
   clinicsLoading = this._clinicsLoading;
+
   constructor(private http: HttpClient) {
     this.loadBranches();
   }
+
+  /** ===================== Specializations ===================== */
 
   private loadSpecializationsByBranch(branchId: number): void {
     if (!branchId) {
@@ -125,19 +142,65 @@ export class ScheduleServices {
     this._clinicsLoading.set(true);
     const url = `${environment.baseUrl}/specialized?branchId=${branchId}`;
 
-    this.http.get<{ item?: any[]; items?: any[] }>(url).subscribe({
+    this.http.get<ApiResponseArray<any>>(url).subscribe({
       next: (res) => {
-        const list = res?.item ?? res?.items ?? [];
+        if (!res?.isSuccess) {
+          this.clinics = [];
+          this._clinicsLoading.set(false);
+
+          if (res?.errors?.length) {
+            this.toast.error(res.errors.join('\n'));
+          } else {
+            this.toast.error('فشل تحميل التخصصات للفرع المحدد.');
+          }
+          return;
+        }
+
+        const list = res.response ?? [];
+
         this.clinics = list.map((sp: any) => ({
           id: sp.id,
           name: sp.arabicName || sp.englishName || `Clinic ${sp.id}`,
           doctors: [],
         }));
+
         this._clinicsLoading.set(false);
       },
       error: () => {
         this.clinics = [];
         this._clinicsLoading.set(false);
+        this.toast.error('حدث خطأ أثناء تحميل التخصصات للفرع.');
+      },
+    });
+  }
+
+  private loadSpecializations(): void {
+    const url = `${environment.baseUrl}/specialized`;
+
+    this.http.get<ApiResponseArray<any>>(url).subscribe({
+      next: (res) => {
+        if (!res?.isSuccess) {
+          this.clinics = [];
+
+          if (res?.errors?.length) {
+            this.toast.error(res.errors.join('\n'));
+          } else {
+            this.toast.error('فشل تحميل قائمة التخصصات.');
+          }
+          return;
+        }
+
+        const items = res.response ?? [];
+
+        this.clinics = items.map((sp: any) => ({
+          id: sp.id,
+          name: sp.arabicName || sp.englishName || `Clinic ${sp.id}`,
+          doctors: [],
+        }));
+      },
+      error: () => {
+        this.clinics = [];
+        this.toast.error('حدث خطأ أثناء تحميل قائمة التخصصات.');
       },
     });
   }
@@ -149,11 +212,78 @@ export class ScheduleServices {
     this.clinics = [];
     this.countsCache = {};
     this.metaCache = {};
+    this.lastScheduleRequest = {};
 
     if (id) {
       this.loadSpecializationsByBranch(id);
     }
   }
+
+  setSelectedClinic(id: number | null) {
+    this.selectedClinicId.set(id);
+  }
+
+  /** ===================== Branches ===================== */
+
+  private loadBranches(): void {
+    this._branchesLoading.set(true);
+
+    this.http
+      .get<{
+        isSuccess: boolean;
+        response?: { items?: any[]; total?: number };
+        errors?: string[];
+      }>(`${environment.baseUrl}/branches`)
+      .subscribe({
+        next: (res) => {
+          if (!res?.isSuccess || !res.response) {
+            this._branches.set([]);
+            this._branchesLoading.set(false);
+
+            if (res?.errors?.length) {
+              this.toast.error(res.errors.join('\n'));
+            } else {
+              this.toast.error('فشل تحميل الفروع.');
+            }
+            return;
+          }
+
+          const items = res.response.items ?? [];
+
+          const mapped: Branch[] = items.map((item) => {
+            const slug =
+              (item.englishName || '')
+                .toString()
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9\-]/g, '') || `branch-${item.id}`;
+
+            return {
+              id: item.id,
+              name: item.arabicName || item.englishName,
+              arabicName: item.arabicName,
+              englishName: item.englishName,
+              ipAddress: item.ipAddress,
+              isUpdatesAvailable: item.isUpdatesAvailable,
+              lastUpdated: item.lastUpdated,
+              path: `/branches/${slug}`,
+            } as Branch;
+          });
+
+          this._branches.set(mapped);
+          this._branchesLoading.set(false);
+        },
+        error: () => {
+          this._branches.set([]);
+          this._branchesLoading.set(false);
+          this.toast.error('حدث خطأ أثناء تحميل الفروع.');
+        },
+      });
+  }
+
+  /** ===================== Doctor Search ===================== */
+
   doctorSearch(term: string) {
     if (!term || term.trim().length < 1) {
       return new Observable<any[]>((obs) => {
@@ -166,70 +296,29 @@ export class ScheduleServices {
       `${environment.baseUrl}/ticket-reservation/daily/monthly-by-search?searchTerm=` +
       encodeURIComponent(term);
 
+    // لو الـ API ده كمان بقى بيرجع isSuccess/response
+    // ساعتها نقدر نعدله لـ this.http.get<ApiResponseArray<any>>(url) وناخد res.response
     return this.http.get<any[]>(url);
   }
 
-  private loadBranches(): void {
-    this._branchesLoading.set(true);
-    this.http.get<{ items: any[] }>(`${environment.baseUrl}/branches`).subscribe({
-      next: (res) => {
-        const items = res?.items || [];
-        const mapped: Branch[] = items.map((item) => {
-          const slug =
-            (item.englishName || '')
-              .toString()
-              .trim()
-              .toLowerCase()
-              .replace(/\s+/g, '-')
-              .replace(/[^a-z0-9\-]/g, '') || `branch-${item.id}`;
-
-          return {
-            id: item.id,
-            name: item.arabicName || item.englishName,
-            arabicName: item.arabicName,
-            englishName: item.englishName,
-            ipAddress: item.ipAddress,
-            isUpdatesAvailable: item.isUpdatesAvailable,
-            lastUpdated: item.lastUpdated,
-            path: `/branches/${slug}`,
-          };
-        });
-
-        this._branches.set(mapped);
-        this._branchesLoading.set(false);
-      },
-      error: () => {
-        this._branches.set([]);
-        this._branchesLoading.set(false);
-      },
-    });
-  }
-
-  private loadSpecializations(): void {
-    this.http.get<{ item: any[] }>(`${environment.baseUrl}/specialized`).subscribe({
-      next: (res) => {
-        const items = res?.item || [];
-        this.clinics = items.map((sp: any) => ({
-          id: sp.id,
-          name: sp.arabicName || sp.englishName || `Clinic ${sp.id}`,
-          doctors: [],
-        }));
-      },
-      error: () => {
-        this.clinics = [];
-      },
-    });
-  }
-
-  setSelectedClinic(id: number | null) {
-    this.selectedClinicId.set(id);
-  }
+  /** ===================== Schedule (Operator) ===================== */
 
   loadSchedule(clinicId: number, year: number, month: number, searchTerm?: string): void {
     if (!year || !month) return;
 
     const trimmed = (searchTerm ?? '').trim();
     let url: string;
+
+    // حارس لتكرار نفس الطلب بدون SearchTerm
+    if (!trimmed) {
+      const last = this.lastScheduleRequest[clinicId];
+      if (last && last.year === year && last.month === month && !last.searchTerm) {
+        return;
+      }
+      this.lastScheduleRequest[clinicId] = { year, month };
+    } else {
+      this.lastScheduleRequest[clinicId] = { year, month, searchTerm: trimmed };
+    }
 
     if (trimmed) {
       url =
@@ -242,13 +331,15 @@ export class ScheduleServices {
         `?serviceid=${clinicId}&year=${year}&month=${month}`;
     }
 
+    // كسر الكاش بتاع الـ browser
     url += `&ts=${Date.now()}`;
 
-    this.http.get<any>(url).subscribe({
+    this.http.get<ApiResponseArray<ScheduleApiItem>>(url).subscribe({
       next: (res) => {
-        const items: ScheduleApiItem[] = Array.isArray(res) ? res : res?.item ?? res?.items ?? [];
+        const items: ScheduleApiItem[] =
+          res?.isSuccess && Array.isArray(res.response) ? res.response : [];
 
-        if (!items || !items.length) {
+        if (!items.length) {
           this.countsCache[clinicId] = {};
           this.metaCache[clinicId] = {};
           this.scheduleChanged$.next({ clinicId, year, month });
@@ -317,6 +408,8 @@ export class ScheduleServices {
     });
   }
 
+  /** ===================== Helpers & Getters ===================== */
+
   getDoctorsByClinic(clinicId: number): Doctor[] {
     const clinic = this.clinics.find((c) => c.id === clinicId);
     return clinic?.doctors || [];
@@ -381,5 +474,19 @@ export class ScheduleServices {
     const d = new Date(day);
     if (!isNaN(d.getTime())) return d;
     return new Date();
+  }
+  getSlotsForDay(clinicId: number, doctorId: number, date: Date): Observable<Slot[]> {
+    const y = date.getFullYear();
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const d = date.getDate().toString().padStart(2, '0');
+    const ymd = `${y}-${m}-${d}`;
+
+    const url =
+      `${environment.baseUrl}/ticket-reservation/available-slots` +
+      `?clinicId=${clinicId}&serviceId=${doctorId}&day=${ymd}`;
+
+    return this.http
+      .get<ApiResponseArray<Slot>>(url)
+      .pipe(map((res) => (res?.isSuccess ? res.response ?? [] : [])));
   }
 }

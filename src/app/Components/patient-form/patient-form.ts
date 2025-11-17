@@ -25,11 +25,10 @@ export class PatientForm {
 
   clinicId!: number;
   doctorId!: number;
-  day!: string; // yyyy-MM-dd
+  day!: string;
   slotIndex: number | null = null;
   ticketId: number | null = null;
 
-  /** وقت داخلي للتعامل مع الـ API بصيغة HH:mm:ss */
   timeInfo = '';
   loading = true;
 

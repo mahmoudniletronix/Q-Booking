@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule, NavigationEnd } from '@angular/router';
+import { Router, RouterModule, NavigationEnd, ActivatedRoute } from '@angular/router';
 import { filter } from 'rxjs/operators';
 
 import {
@@ -18,6 +18,7 @@ import {
   TicketPrintDto,
 } from '../../service/ticket-reservation/ticket-reservation';
 import { GlobalConfigService } from '../../service/config/global-config-service';
+import { AppToastService } from '../../service/Toastr/app-toast.service';
 
 type OperatorId = 'all' | number;
 
@@ -34,7 +35,7 @@ interface VisibleDay {
   templateUrl: './q-booking-services.html',
   styleUrls: ['./q-booking-services.css'],
 })
-export class QBookingServices implements OnDestroy {
+export class QBookingServices implements OnDestroy, OnInit {
   private headerPath = inject(HeaderPathService);
 
   // ===== Global search (strips) =====
@@ -51,9 +52,11 @@ export class QBookingServices implements OnDestroy {
   constructor(
     public sch: ScheduleServices,
     private router: Router,
+    private route: ActivatedRoute,
     private bus: TicketSearchBusService,
     private ticketReservation: TicketReservation,
-    private globalConfig: GlobalConfigService
+    private globalConfig: GlobalConfigService,
+    private toast: AppToastService
   ) {
     this.buildVisibleDays();
     this.globalConfig.load().catch(() => {});
@@ -62,29 +65,88 @@ export class QBookingServices implements OnDestroy {
       .pipe(filter((e) => e instanceof NavigationEnd))
       .subscribe(() => this.reloadIfReady());
 
-    this.busSub = this.sch.scheduleChanged$.subscribe(({ clinicId, year, month }) => {
-      const currentClinic = this.sch.selectedClinicId();
-      if (!currentClinic) return;
-      if (currentClinic === clinicId && year === this.viewYear && month === this.viewMonth + 1) {
-        this.reloadIfReady();
-      }
-    });
+    this.busSub = this.sch.scheduleChanged$.subscribe(() => {});
 
     this.globalSearchSub = this.bus.results$.subscribe(({ items, term }) =>
       this.onGlobalResultsReceived(items, term)
     );
   }
+
+  ngOnInit() {
+    const qp = this.route.snapshot.queryParamMap;
+    const qpBranchId = Number(qp.get('branchId') || 0);
+    const qpClinicId = Number(qp.get('clinicId') || 0);
+    const qpDoctorId = Number(qp.get('doctorId') || 0);
+    const qpSearch = qp.get('search') || '';
+    const savedSearch = localStorage.getItem('qbook.search') || '';
+    const savedDoctorId = Number(localStorage.getItem('qbook.doctorId') || 0);
+    const savedBranchId = Number(localStorage.getItem('qbook.branchId') || 0);
+    const savedClinicId = Number(localStorage.getItem('qbook.clinicId') || 0);
+    this.filter.searchQuery = savedSearch;
+    if (savedDoctorId) {
+      this.filter.operatorId = savedDoctorId as OperatorId;
+    } else {
+      this.filter.operatorId = 'all';
+    }
+    if (!savedBranchId) {
+      return;
+    }
+
+    this.onBranchChange(savedBranchId);
+    this.filter.searchQuery = savedSearch;
+
+    let retries = 0;
+    const maxRetries = 40;
+
+    const interval = setInterval(() => {
+      retries++;
+
+      if (!this.sch.clinics || this.sch.clinics.length === 0) {
+        if (retries > maxRetries) clearInterval(interval);
+        return;
+      }
+
+      clearInterval(interval);
+
+      if (savedClinicId) {
+        const clinic =
+          this.sch.clinics.find((c) => c.id === savedClinicId) || this.sch.clinics[0] || null;
+        if (clinic) {
+          this.sch.setSelectedClinic(clinic.id);
+          localStorage.setItem('qbook.clinicId', String(clinic.id));
+        }
+      }
+
+      if (savedDoctorId) {
+        this.filter.operatorId = savedDoctorId as OperatorId;
+        this.sch.setSelectedDoctor(savedDoctorId);
+        localStorage.setItem('qbook.doctorId', String(savedDoctorId));
+      } else {
+        this.filter.operatorId = 'all';
+        this.sch.setSelectedDoctor(null);
+        localStorage.removeItem('qbook.doctorId');
+      }
+      this.buildVisibleDays();
+      this.updateHeaderPath();
+      this.reloadIfReady();
+    }, 100);
+  }
   editSearchTicket(t: TicketSearchResultDto) {
-    const anyT = t as any;
+    let clinic =
+      this.sch.clinics.find(
+        (c) => c.name && c.name.toString().trim() === (t.serviceParentName || '').toString().trim()
+      ) || null;
 
-    const clinicId: number | null =
-      (anyT.serviceParentId as number) || this.sch.selectedClinicId() || null;
+    if (!clinic && this.sch.clinics.length) {
+      clinic = this.sch.clinics[0];
+    }
 
-    const doctorId: number | null = (t.serviceId as number) || null;
+    const clinicId: number | null = clinic?.id ?? null;
+    const doctorId: number | null = t.serviceId || null;
 
     if (!clinicId || !doctorId) {
       console.warn('Missing clinicId or doctorId for ticket search result', t);
-      alert('لا يمكن فتح التذكرة لعدم توفر بيانات العيادة أو الطبيب.');
+      this.toast.error('لا يمكن فتح التذكرة لعدم توفر بيانات العيادة أو الطبيب.');
       return;
     }
 
@@ -125,7 +187,6 @@ export class QBookingServices implements OnDestroy {
     return d.getTime() < today.getTime();
   }
 
-  // label + class للـ Status (Active / Inactive / Missed)
   getStatusLabel(r: TicketSearchResultDto): string {
     if (!r.isActive && this.isPastDate(r.reservationDate)) {
       return 'Missed';
@@ -138,7 +199,6 @@ export class QBookingServices implements OnDestroy {
       return 'bg-success text-white';
     }
     if (this.isPastDate(r.reservationDate)) {
-      // missed قديم
       return 'bg-warning text-dark';
     }
     return 'bg-secondary text-light';
@@ -169,11 +229,9 @@ export class QBookingServices implements OnDestroy {
     this.searchPopupOpen = false;
   }
 
-  // ===== طباعة من الـ Global Search (شرط يكون التاريخ = النهاردة) =====
   async printSearchTicket(t: TicketSearchResultDto) {
-    // 1) مسموح طباعة بس لو تاريخ الحجز هو نفس تاريخ النهاردة
     if (!this.isSameDate(t.reservationDate)) {
-      alert('❌ لا يمكن طباعة التذكرة إلا في يوم الحجز نفسه.');
+      this.toast.warning('لا يمكن طباعة التذكرة إلا في يوم الحجز نفسه.');
       return;
     }
 
@@ -221,7 +279,7 @@ export class QBookingServices implements OnDestroy {
       );
     } catch (err) {
       console.error('Print error', err);
-      alert('❌ Failed to open print preview.');
+      this.toast.error('فشل في فتح معاينة الطباعة.');
     }
   }
 
@@ -230,74 +288,74 @@ export class QBookingServices implements OnDestroy {
     if (!w) return;
 
     const css = `
-    *{box-sizing:border-box}
-    html,body{margin:0;font-family:"Tajawal","Segoe UI",Arial;-webkit-font-smoothing:antialiased}
-    .toolbar{
-      position:fixed;top:0;left:0;right:0;background:#111;color:#fff;
-      padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10
-    }
-    .toolbar .title{font-weight:700;margin-inline-end:auto}
-    .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
-    .btn-print{background:#22c55e;color:#fff}
-    .btn-close{background:#ef4444;color:#fff}
+      *{box-sizing:border-box}
+      html,body{margin:0;font-family:"Tajawal","Segoe UI",Arial;-webkit-font-smoothing:antialiased}
+      .toolbar{
+        position:fixed;top:0;left:0;right:0;background:#111;color:#fff;
+        padding:8px 12px;display:flex;gap:8px;align-items:center;z-index:10
+      }
+      .toolbar .title{font-weight:700;margin-inline-end:auto}
+      .toolbar button{border:0;padding:6px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+      .btn-print{background:#22c55e;color:#fff}
+      .btn-close{background:#ef4444;color:#fff}
 
-    .content{display:flex;justify-content:center}
-    .print-wrap{display:flex;justify-content:center;width:100%}
-     .print-page{
-      width:80mm; background:#fff;
-      page-break-inside:avoid;break-inside:avoid;
-     }
+      .content{display:flex;justify-content:center}
+      .print-wrap{display:flex;justify-content:center;width:100%}
+      .print-page{
+        width:80mm; background:#fff;
+        page-break-inside:avoid;break-inside:avoid;
+      }
 
-    @media print{
-      @page { size:80mm auto; margin:0 }   
-      .toolbar{display:none}
-      html,body{width:80mm}
-      .print-page{width:80mm;padding:0}    
-      img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
-    }
-  `;
+      @media print{
+        @page { size:80mm auto; margin:0 }   
+        .toolbar{display:none}
+        html,body{width:80mm}
+        .print-page{width:80mm;padding:0}    
+        img{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+      }
+    `;
 
     const printScript = `
-    <script>
-      (function(){
-        function waitImages(){
-          const imgs=[...document.images];
-          return Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;})));
-        }
-        async function ready(){ try{await waitImages();}catch{} }
-        ${
-          opts?.autoPrint === false
-            ? ''
-            : `if(document.readyState==="complete") ready(); else addEventListener('load',ready,{once:true});`
-        }
-      })();
-    <\/script>
-  `;
+      <script>
+        (function(){
+          function waitImages(){
+            const imgs=[...document.images];
+            return Promise.all(imgs.map(i=>i.complete?Promise.resolve():new Promise(r=>{i.onload=i.onerror=r;})));
+          }
+          async function ready(){ try{await waitImages();}catch{} }
+          ${
+            opts?.autoPrint === false
+              ? ''
+              : `if(document.readyState==="complete") ready(); else addEventListener('load',ready,{once:true});`
+          }
+        })();
+      <\/script>
+    `;
 
     w.document.open();
     w.document.write(`
-    <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="utf-8"/><title>${title}</title>
-        <style>${css}</style>
-      </head>
-      <body>
-        <div class="toolbar">
-          <div class="title">${title}</div>
-          <button class="btn-print" onclick="print()">Print</button>
-          <button class="btn-close" onclick="close()">Close</button>
-        </div>
-        <div class="content">
-          <div class="print-wrap">
-            <div class="print-page">
-              ${bodyInnerHtml}
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="utf-8"/><title>${title}</title>
+          <style>${css}</style>
+        </head>
+        <body>
+          <div class="toolbar">
+            <div class="title">${title}</div>
+            <button class="btn-print" onclick="print()">Print</button>
+            <button class="btn-close" onclick="close()">Close</button>
+          </div>
+          <div class="content">
+            <div class="print-wrap">
+              <div class="print-page">
+                ${bodyInnerHtml}
+              </div>
             </div>
           </div>
-        </div>
-        ${printScript}
-      </body>
-    </html>
-  `);
+          ${printScript}
+        </body>
+      </html>
+    `);
     w.document.close();
   }
 
@@ -333,143 +391,143 @@ export class QBookingServices implements OnDestroy {
     const phone = dto.customerInput || '';
 
     return `
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      font-family: "Tajawal","Segoe UI",Arial,sans-serif;
-      -webkit-font-smoothing: antialiased;
-      color: #000;
-      background: #fff;
-    }
-
-    .ticket {
-      margin: 0 auto;
-      padding: 0 0 2mm 0;
-      background: #fff;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      text-align: center;
-    }
-
-    .logo { margin: 2mm 0 2mm; }
-    .logo img {
-      display: block;
-      margin: 0 auto;
-      max-width: 70mm;
-      max-height: 55mm;
-    }
-
-    .header {
-       display: flex;
-      justify-content: space-between;
-      font-size: 11pt;
-      color: #444;
-      padding: 0 6mm;
-      margin: 1mm 0 4mm;
-    }
-
-    .patient {
-      font-size: 14pt;
-      font-weight: 800;
-      line-height: 1.3;
-      margin-bottom: 1mm;
-    }
-
-    .clinic {
-      font-size: 10pt;
-      font-weight: 400;
-      line-height: 1.3;
-      margin-bottom: 1.5mm;
-    }
-
-    .num {
-      font-size: 27pt;
-      font-weight: 700;
-      margin: 1mm 0 -5mm;
-      letter-spacing: .5pt;
-    }
-
-    .info {
-      text-align: right;
-      width: 90%;
-      margin: 0 auto 3mm;
-      font-size: 10pt;
-      line-height: 1.6;
-    }
-    .label { font-weight: 700; }
-    .value { font-weight: normal; }
-
-    .site {
-      margin: 0 auto;
-      text-align: center;
-      border-top: 1px solid #000;
-    }
-    .site-border {
-      width: 100%;
-      height: 1px;
-      background: #000;
-      margin: 2mm 0 1.5mm 0;
-      display: block;
-    }
-    .site-text {
-      font-size: 9pt;
-      font-weight: 500;
-      color: #000;
-      direction: ltr;
-      letter-spacing: .3pt;
-    }
-
-    @page { size: 80mm auto; margin: 0; }
-
-    @media print {
-      html, body { width: 80mm; margin: 0; padding: 0; }
-      .ticket    { width: 80mm; margin: 0; padding: 0 0 2mm 0; }
-      img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-    }
-  </style>
-
-  <div class="ticket">
-    <div class="logo">
-      <img src="${orgLogo}" alt="logo" />
-    </div>
-
-    <div class="header">
-      <span style="color:#000; margin-right: 20px">${dto.printTime ?? ''}</span>
-      <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
-    </div>
-
-    <div class="clinic">${clinicName}</div>
-    <div class="patient">د / ${doctorName} </div>
-
-    <br />
-    <div class="num">${dto.number ?? ''}</div>
-    <br />
-    ${phone ? `<div><span class="value">${phone}</span></div>` : ''}
-    <br />
-    <div class="info">
-      <div>
-        <span class="label">الفرع: </span>
-        <span class="value">${branch}</span>
-      </div>
-
-      <div>
-        <span class="label">عملاء منتظرين: </span>
-        <span class="value">${wait}</span>
-      </div>
-
-      ${
-        avgWait != null
-          ? `<div><span class="label">متوسط وقت الانتظار: </span> <span class="value">${avgWait} دقيقة</span></div>`
-          : ''
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: "Tajawal","Segoe UI",Arial,sans-serif;
+        -webkit-font-smoothing: antialiased;
+        color: #000;
+        background: #fff;
       }
-    </div>
 
-    <div class="site">
-      <div class="site-text">www.Niletronix.com</div>
+      .ticket {
+        margin: 0 auto;
+        padding: 0 0 2mm 0;
+        background: #fff;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        text-align: center;
+      }
+
+      .logo { margin: 2mm 0 2mm; }
+      .logo img {
+        display: block;
+        margin: 0 auto;
+        max-width: 70mm;
+        max-height: 55mm;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11pt;
+        color: #444;
+        padding: 0 6mm;
+        margin: 1mm 0 4mm;
+      }
+
+      .patient {
+        font-size: 14pt;
+        font-weight: 800;
+        line-height: 1.3;
+        margin-bottom: 1mm;
+      }
+
+      .clinic {
+        font-size: 10pt;
+        font-weight: 400;
+        line-height: 1.3;
+        margin-bottom: 1.5mm;
+      }
+
+      .num {
+        font-size: 27pt;
+        font-weight: 700;
+        margin: 1mm 0 -5mm;
+        letter-spacing: .5pt;
+      }
+
+      .info {
+        text-align: right;
+        width: 90%;
+        margin: 0 auto 3mm;
+        font-size: 10pt;
+        line-height: 1.6;
+      }
+      .label { font-weight: 700; }
+      .value { font-weight: normal; }
+
+      .site {
+        margin: 0 auto;
+        text-align: center;
+        border-top: 1px solid #000;
+      }
+      .site-border {
+        width: 100%;
+        height: 1px;
+        background: #000;
+        margin: 2mm 0 1.5mm 0;
+        display: block;
+      }
+      .site-text {
+        font-size: 9pt;
+        font-weight: 500;
+        color: #000;
+        direction: ltr;
+        letter-spacing: .3pt;
+      }
+
+      @page { size: 80mm auto; margin: 0; }
+
+      @media print {
+        html, body { width: 80mm; margin: 0; padding: 0; }
+        .ticket    { width: 80mm; margin: 0; padding: 0 0 2mm 0; }
+        img { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+
+    <div class="ticket">
+      <div class="logo">
+        <img src="${orgLogo}" alt="logo" />
+      </div>
+
+      <div class="header">
+        <span style="color:#000; margin-right: 20px">${dto.printTime ?? ''}</span>
+        <span style="color:#000; margin-left: 20px">${dto.printDate ?? ''}</span>
+      </div>
+
+      <div class="clinic">${clinicName}</div>
+      <div class="patient">د / ${doctorName} </div>
+
+      <br />
+      <div class="num">${dto.number ?? ''}</div>
+      <br />
+      ${phone ? `<div><span class="value">${phone}</span></div>` : ''}
+      <br />
+      <div class="info">
+        <div>
+          <span class="label">الفرع: </span>
+          <span class="value">${branch}</span>
+        </div>
+
+        <div>
+          <span class="label">عملاء منتظرين: </span>
+          <span class="value">${wait}</span>
+        </div>
+
+        ${
+          avgWait != null
+            ? `<div><span class="label">متوسط وقت الانتظار: </span> <span class="value">${avgWait} دقيقة</span></div>`
+            : ''
+        }
+      </div>
+
+      <div class="site">
+        <div class="site-text">www.Niletronix.com</div>
+      </div>
     </div>
-  </div>
-  `;
+    `;
   }
 
   private navSub: any;
@@ -491,7 +549,6 @@ export class QBookingServices implements OnDestroy {
   visibleDays: VisibleDay[] = [];
   private searchTimer: number | null = null;
 
-  // ===== Keyboard nav for month =====
   @HostListener('window:keydown', ['$event'])
   handleMonthKeyboardNav(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
@@ -508,7 +565,6 @@ export class QBookingServices implements OnDestroy {
     else if (event.key === 'ArrowLeft') this.prevMonth();
   }
 
-  // ===== Branches =====
   get branches(): Branch[] {
     return this.sch.branches();
   }
@@ -517,18 +573,29 @@ export class QBookingServices implements OnDestroy {
     this.selectedBranchId = id;
     this.sch.setSelectedBranch(id);
     this.sch.setSelectedClinic(null);
+    this.sch.setSelectedDoctor(null);
+
     this.filter.operatorId = 'all';
     this.filter.searchQuery = '';
 
     const br = this.branches.find((b) => b.id === id) || null;
-
     const branchName = br?.name ?? '';
-
     this.selectedBranchPath = branchName;
-
     this.headerPath.setBranchPath(branchName);
 
     this.updateHeaderPath?.();
+
+    if (id) {
+      localStorage.setItem('qbook.branchId', String(id));
+    } else {
+      localStorage.removeItem('qbook.branchId');
+    }
+
+    localStorage.removeItem('qbook.clinicId');
+    localStorage.removeItem('qbook.doctorId');
+    localStorage.removeItem('qbook.search');
+
+    this.reloadIfReady();
   }
 
   get clinicsLoading(): boolean {
@@ -537,8 +604,18 @@ export class QBookingServices implements OnDestroy {
 
   onSpecializationChange(id: number | null) {
     if (!this.sch.selectedBranchId()) return;
+
     this.sch.setSelectedClinic(id);
     this.filter.operatorId = 'all';
+    this.sch.setSelectedDoctor(null);
+
+    if (id) {
+      localStorage.setItem('qbook.clinicId', String(id));
+    } else {
+      localStorage.removeItem('qbook.clinicId');
+      localStorage.removeItem('qbook.doctorId');
+    }
+
     this.reloadIfReady();
   }
 
@@ -563,7 +640,15 @@ export class QBookingServices implements OnDestroy {
     this.headerPath.setExtraPath(extra);
   }
 
-  // ===== Filters =====
+  get hasAnySelection(): boolean {
+    return (
+      !!this.sch.selectedBranchId() ||
+      !!this.sch.selectedClinicId() ||
+      this.filter.operatorId !== 'all' ||
+      !!(this.filter.searchQuery && this.filter.searchQuery.trim())
+    );
+  }
+
   get hasActiveFilters(): boolean {
     return (
       (this.filter.searchQuery && this.filter.searchQuery.trim().length > 0) ||
@@ -572,8 +657,37 @@ export class QBookingServices implements OnDestroy {
   }
 
   resetFilters(triggerReload: boolean = true) {
-    this.filter = { searchQuery: '', operatorId: 'all' };
-    if (triggerReload) this.reloadIfReady();
+    this.filter = {
+      searchQuery: '',
+      operatorId: 'all',
+    };
+    this.sch.setSelectedDoctor(null);
+
+    this.selectedBranchId = null;
+    this.sch.setSelectedBranch(null);
+    this.sch.setSelectedClinic(null);
+    this.sch.setSelectedDoctor(null);
+    localStorage.removeItem('qbook.search');
+    localStorage.removeItem('qbook.doctorId');
+    this.doctorSearchMode = false;
+    this.doctorSearchResults = [];
+    this.searchStripMode = false;
+    this.globalSearchResults = [];
+    this.globalSearchQuery = '';
+    this.selectedSearchTicket = null;
+    this.searchPopupOpen = false;
+
+    localStorage.removeItem('qbook.branchId');
+    localStorage.removeItem('qbook.clinicId');
+    localStorage.removeItem('qbook.doctorId');
+    localStorage.removeItem('qbook.search');
+    this.headerPath.clearBranchPath?.();
+    this.headerPath.clearDoctorPath?.();
+    this.headerPath.clearExtra?.();
+
+    if (triggerReload) {
+      this.reloadIfReady();
+    }
   }
 
   onOperatorChange(id: OperatorId) {
@@ -581,8 +695,11 @@ export class QBookingServices implements OnDestroy {
 
     if (id === 'all') {
       this.sch.setSelectedDoctor(null);
+      localStorage.removeItem('qbook.doctorId');
     } else {
-      this.sch.setSelectedDoctor(id as number);
+      const numId = id as number;
+      this.sch.setSelectedDoctor(numId);
+      localStorage.setItem('qbook.doctorId', String(numId));
     }
   }
 
@@ -592,6 +709,12 @@ export class QBookingServices implements OnDestroy {
     if (this.searchTimer) clearTimeout(this.searchTimer);
 
     const trimmed = (term || '').trim();
+
+    if (trimmed) {
+      localStorage.setItem('qbook.search', trimmed);
+    } else {
+      localStorage.removeItem('qbook.search');
+    }
 
     if (!trimmed) {
       this.doctorSearchMode = false;
@@ -613,20 +736,26 @@ export class QBookingServices implements OnDestroy {
     }
 
     this.sch.doctorSearch(trimmed).subscribe({
-      next: (res: any[]) => {
-        this.doctorSearchResults = Array.isArray(res) ? res : [];
+      next: (res: any) => {
+        const items = Array.isArray(res) ? res : Array.isArray(res?.response) ? res.response : [];
+
+        this.doctorSearchResults = items;
         this.doctorSearchMode = this.doctorSearchResults.length > 0;
+
+        if (!this.doctorSearchResults.length) {
+          this.toast.info('لا توجد نتائج مطابقة لاسم الطبيب المدخل.');
+        }
       },
       error: () => {
         this.doctorSearchResults = [];
         this.doctorSearchMode = false;
+        this.toast.error('حدث خطأ أثناء البحث عن الأطباء.');
       },
     });
   }
 
   openDoctorFromSearch(item: any) {
     this.doctorSearchMode = false;
-
     this.filter.searchQuery = '';
 
     const branchId: number | null = item.branchId ?? null;
@@ -636,17 +765,24 @@ export class QBookingServices implements OnDestroy {
     }
 
     this.sch.setSelectedBranch(branchId);
+    localStorage.setItem('qbook.branchId', String(branchId));
 
     const branch = this.branches.find((b) => b.id === branchId) || null;
-    const branchName = branch?.name ?? '';
+    const branchName = branch?.name ?? (item.branchNameAr || item.branchNameEn || '');
     this.selectedBranchPath = branchName;
     this.headerPath.setBranchPath(branchName);
 
+    const clinicIdFromDto: number | null = item.parentId ?? null;
     const parentName: string = (item.parentServiceArabicName || item.parentServiceEnglishName || '')
       .toString()
       .trim();
 
     const doctorId: number | null = item.serviceId ?? null;
+    const doctorName: string = (item.serviceArabicName || item.serviceEnglishName || '')
+      .toString()
+      .trim();
+
+    this.headerPath.setDoctorPath(doctorName);
 
     let retries = 0;
     const maxRetries = 40;
@@ -663,11 +799,10 @@ export class QBookingServices implements OnDestroy {
       }
 
       let clinic =
-        this.sch.clinics.find((c) => c.name && c.name.toString().trim() === parentName) || null;
-
-      if (!clinic) {
-        clinic = this.sch.clinics[0] ?? null;
-      }
+        ((clinicIdFromDto && this.sch.clinics.find((c) => c.id === clinicIdFromDto)) ||
+          this.sch.clinics.find((c) => c.name && c.name.toString().trim() === parentName) ||
+          this.sch.clinics[0]) ??
+        null;
 
       clearInterval(interval);
 
@@ -677,32 +812,30 @@ export class QBookingServices implements OnDestroy {
       }
 
       this.sch.setSelectedClinic(clinic.id);
+      localStorage.setItem('qbook.clinicId', String(clinic.id));
 
       if (doctorId) {
         this.filter.operatorId = doctorId as OperatorId;
         this.sch.setSelectedDoctor(doctorId);
+        localStorage.setItem('qbook.doctorId', String(doctorId));
       } else {
         this.filter.operatorId = 'all';
         this.sch.setSelectedDoctor(null);
+        localStorage.removeItem('qbook.doctorId');
       }
 
       this.updateHeaderPath?.();
-
       this.reloadIfReady();
 
       setTimeout(() => {
         const el = document.querySelector('.schedule-table');
         if (el) {
-          el.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }, 400);
     }, 100);
   }
 
-  // ===== Selected clinic / doctors =====
   get selectedClinic() {
     const id = this.sch.selectedClinicId();
     return id ? this.sch.clinics.find((c) => c.id === id) ?? null : null;
@@ -728,7 +861,6 @@ export class QBookingServices implements OnDestroy {
     });
   }
 
-  // ===== Month / days =====
   get monthLabel(): string {
     const date = new Date(this.viewYear, this.viewMonth, 1);
     return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -779,7 +911,6 @@ export class QBookingServices implements OnDestroy {
     this.reloadIfReady();
   }
 
-  // ===== DayStats =====
   counts(clinicId: number, doctorId: number, day: VisibleDay): DayStats {
     return this.sch.countsFor(clinicId, doctorId, day.date);
   }
@@ -793,16 +924,27 @@ export class QBookingServices implements OnDestroy {
 
   onReservedClick(clinicId: number, doctor: Doctor, day: VisibleDay) {
     if (!clinicId || !doctor?.id) return;
+
+    this.sch.setSelectedClinic(clinicId);
+    this.sch.setSelectedDoctor(doctor.id);
+    localStorage.setItem('qbook.clinicId', String(clinicId));
+    localStorage.setItem('qbook.doctorId', String(doctor.id));
+
     const dayKey = this.formatDateKey(day.date);
     this.router.navigate(['/patient/received', clinicId, doctor.id, dayKey]);
   }
 
   onAvailableClick(clinicId: number, doctor: Doctor, day: VisibleDay) {
     if (!clinicId || !doctor?.id) return;
+
+    this.sch.setSelectedClinic(clinicId);
+    this.sch.setSelectedDoctor(doctor.id);
+    localStorage.setItem('qbook.clinicId', String(clinicId));
+    localStorage.setItem('qbook.doctorId', String(doctor.id));
+
     const dayKey = this.formatDateKey(day.date);
     this.router.navigate(['/patient/available', clinicId, doctor.id, dayKey]);
   }
-
   isMissedTicket(r: TicketSearchResultDto): boolean {
     return !r.isActive && this.isPastDate(r.reservationDate);
   }
@@ -811,7 +953,6 @@ export class QBookingServices implements OnDestroy {
     return !r.isActive && this.isSameDate(r.reservationDate);
   }
 
-  // ===== trackBy =====
   trackByDay = (_: number, day: VisibleDay) => day.dayNum;
   trackByDoctor = (_: number, d: Doctor) => d.id;
 }

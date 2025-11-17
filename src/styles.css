@@ -48,3 +48,22 @@ main {
 .footer {
   flex-shrink: 0;
 }
+#toast-container > div {
+  direction: rtl;
+  font-family: 'Tajawal', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.toast-success {
+  background: linear-gradient(135deg, #1abc9c, #2ecc71);
+}
+.toast-error {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+.toast-warning {
+  background: linear-gradient(135deg, #f39c12, #d35400);
+}
+.toast-info {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+}

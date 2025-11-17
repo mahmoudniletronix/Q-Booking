@@ -112,15 +112,83 @@
 
         <div class="panel-section">
           <div class="section-title">Move selected to another doctor</div>
-          <select class="form-select form-select-sm mb-2" [(ngModel)]="targetDoctorId">
+
+          <select
+            class="form-select form-select-sm mb-2"
+            [ngModel]="targetDoctorId"
+            (ngModelChange)="onTargetDoctorChange($event)"
+          >
             <option [ngValue]="null" disabled>Choose doctor...</option>
             <option *ngFor="let d of targetDoctors" [ngValue]="d.id" [disabled]="d.id === doctorId">
               {{ d.name }}
             </option>
           </select>
+
+          <div *ngIf="targetDoctorDays.length">
+            <label class="form-label small mb-1">Day for selected doctor</label>
+
+            <select
+              class="form-select form-select-sm"
+              [(ngModel)]="selectedTargetDay"
+              (ngModelChange)="onTargetDayChange($event)"
+            >
+              <option [ngValue]="null" disabled>Choose day...</option>
+              <option *ngFor="let d of targetDoctorDays" [ngValue]="d.dateYmd">
+                {{ d.dayText }} — {{ d.startText }} — {{ d.reserved }} Reserved /
+                {{ d.available }} Available
+              </option>
+            </select>
+
+            <div class="mt-2" *ngIf="selectedTargetDay">
+              <ng-container *ngFor="let d of targetDoctorDays">
+                <ng-container *ngIf="d.dateYmd === selectedTargetDay">
+                  <span class="badge-status badge-reserved"> {{ d.reserved }} Reserved </span>
+                  <span class="badge-status badge-available"> {{ d.available }} Available </span>
+                </ng-container>
+              </ng-container>
+            </div>
+          </div>
+
+          <div
+            class="mt-2"
+            *ngIf="selectedIds.size === 1 && selectedTargetDay && targetDaySlots.length"
+          >
+            <label class="form-label small mb-1">Slot for selected ticket</label>
+
+            <select class="form-select form-select-sm" [(ngModel)]="selectedTargetSlot">
+              <option [ngValue]="null" disabled>Choose slot...</option>
+              <option *ngFor="let s of targetDaySlots" [ngValue]="s">
+                {{ format12(s) }}
+              </option>
+            </select>
+          </div>
+
+          <div
+            class="mt-2"
+            *ngIf="selectedIds.size > 1 && selectedTargetDay && targetDaySlots.length"
+          >
+            <label class="form-label small mb-1">Slots for selected tickets</label>
+
+            <div
+              class="d-flex align-items-center gap-2 mb-1 ticket-slot-row"
+              *ngFor="let t of selectedTickets"
+            >
+              <div class="small text-muted" style="min-width: 120px">
+                {{ t.number }} — {{ format12(t.timeSlot) }}
+              </div>
+
+              <select class="form-select form-select-sm" [(ngModel)]="ticketMoveSlots[t.id]">
+                <option [ngValue]="null" disabled>Choose slot...</option>
+                <option *ngFor="let s of targetDaySlots" [ngValue]="s">
+                  {{ format12(s) }}
+                </option>
+              </select>
+            </div>
+          </div>
+
           <button
             type="button"
-            class="btn btn-sm btn-move w-100"
+            class="btn btn-sm btn-move w-100 mt-2"
             [disabled]="!canMove()"
             (click)="moveSelected()"
           >
@@ -130,12 +198,17 @@
 
         <div class="panel-section">
           <div class="section-title">Change day</div>
-          <input
-            type="date"
-            class="form-control form-control-sm mb-2"
-            [ngModel]="day"
-            (ngModelChange)="onDayChange($event)"
-          />
+          <div class="d-flex gap-2">
+            <input type="date" class="form-control form-control-sm" [(ngModel)]="newDayValue" />
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-light bg-primary text-white flex-fill"
+              [disabled]="!canChangeDay()"
+              (click)="changeDay()"
+            >
+              Change
+            </button>
+          </div>
         </div>
 
         <div class="panel-section">

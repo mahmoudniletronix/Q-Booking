@@ -1,5 +1,6 @@
 import {
   ApplicationConfig,
+  importProvidersFrom,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
 } from '@angular/core';
@@ -8,6 +9,9 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { routes } from './app.routes';
 import { GlobalConfigService } from './service/config/global-config-service';
 import { APP_INITIALIZER } from '@angular/core';
+import { ToastrModule } from 'ngx-toastr';
+
+import { provideAnimations } from '@angular/platform-browser/animations';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -21,5 +25,18 @@ export const appConfig: ApplicationConfig = {
       deps: [GlobalConfigService],
       useFactory: (cfg: GlobalConfigService) => () => cfg.load(),
     },
+
+    provideAnimations(),
+
+    importProvidersFrom(
+      ToastrModule.forRoot({
+        positionClass: 'toast-bottom-right',
+        timeOut: 4000,
+        closeButton: true,
+        progressBar: true,
+        newestOnTop: true,
+        tapToDismiss: true,
+      })
+    ),
   ],
 };

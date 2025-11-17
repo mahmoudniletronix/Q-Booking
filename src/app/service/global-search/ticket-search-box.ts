@@ -21,6 +21,12 @@ export interface TicketSearchResultDto {
   serviceParentName: string;
 }
 
+interface TicketSearchApiResponse {
+  isSuccess: boolean;
+  response: TicketSearchResultDto[];
+  errors: string[];
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -33,9 +39,15 @@ export class SearchTicketService {
     const params = new HttpParams().set('searchTerm', searchTerm);
 
     return this.http
-      .get<{ item: TicketSearchResultDto[] }>(`${this.baseUrl}/ticket-reservation/search-ticket`, {
-        params,
-      })
-      .pipe(map((res) => res?.item || []));
+      .get<TicketSearchApiResponse>(`${this.baseUrl}/ticket-reservation/search-ticket`, { params })
+      .pipe(
+        map((res) => {
+          if (!res) return [];
+          if (!res.isSuccess) {
+            console.warn('Search ticket not success', res.errors);
+          }
+          return res.response || [];
+        })
+      );
   }
 }

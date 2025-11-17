@@ -63,20 +63,22 @@
           </select>
         </div>
 
-        <!-- Local doctor search -->
+        <!-- Local doctor search + Reset -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
           <div class="d-flex justify-content-between align-items-center">
             <label class="form-label small mb-1 mb-0">Search</label>
+
             <button
-              *ngIf="hasActiveFilters && sch.selectedClinicId()"
               type="button"
-              class="btn btn-sm reset-link"
+              class="btn btn-sm reset-link ms-2 mb-2"
+              *ngIf="hasAnySelection"
               (click)="resetFilters()"
             >
-              <i class="bi bi-arrow-counterclockwise"></i>
+              <i class="bi bi-x-circle"></i>
               <span class="ms-1">Reset</span>
             </button>
           </div>
+
           <div class="input-group input-group-sm">
             <span class="input-group-text">
               <i class="bi bi-search"></i>
@@ -125,7 +127,6 @@
       </div>
 
       <!-- ================= GLOBAL SEARCH STRIPS ================= -->
-      <!-- لو في نتائج جلوبال سيرش: اعرض strips مكان الجدول -->
       <div *ngIf="searchStripMode && globalSearchResults.length; else scheduleContent">
         <div class="search-strips mb-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -192,7 +193,6 @@
                 <span class="mx-2" *ngIf="r.createDate">
                   ⏱️ Created: {{ r.createDate | date : 'short' }}
                 </span>
-                <!-- <span *ngIf="r.phoneNumber">📞 {{ r.phoneNumber }}</span> -->
               </div>
 
               <div class="strip-meta3 mt-1">
@@ -304,7 +304,7 @@
         </ng-template>
       </ng-template>
 
-      <!-- ============= POPUPFOR GLOBAL SEARCH TICKET ============= -->
+      <!-- ============= POPUP FOR GLOBAL SEARCH TICKET ============= -->
       <div class="search-modal-backdrop" *ngIf="searchPopupOpen && selectedSearchTicket as p">
         <div class="search-modal">
           <div class="modal-header d-flex justify-content-between align-items-center mb-2">
@@ -351,7 +351,7 @@
 
               <div class="col-6">
                 <div class="label">Doctor</div>
-                <div class="value">{{ p.serviceName }} (ID: {{ p.serviceId }})</div>
+                <div class="value">{{ p.serviceName }}</div>
               </div>
 
               <div class="col-6">
@@ -368,10 +368,10 @@
                 </div>
               </div>
 
-              <div class="col-6" *ngIf="p.serviceWorkFlow">
+              <!-- <div class="col-6" *ngIf="p.serviceWorkFlow">
                 <div class="label">Workflow</div>
                 <div class="value">{{ p.serviceWorkFlow }}</div>
-              </div>
+              </div> -->
 
               <div class="col-6">
                 <div class="label">Patient</div>
@@ -387,10 +387,10 @@
                 </div>
               </div>
 
-              <div class="col-12" *ngIf="p.customerInput">
+              <!-- <div class="col-12" *ngIf="p.customerInput">
                 <div class="label">Note</div>
                 <div class="value">{{ p.customerInput }}</div>
-              </div>
+              </div> -->
             </div>
           </div>
 

@@ -89,3 +89,10 @@ body,
 .search-box {
   float: right;
 }
+.header-path .path-segment {
+  cursor: pointer;
+}
+
+.header-path .path-segment:hover {
+  text-decoration: underline;
+}
