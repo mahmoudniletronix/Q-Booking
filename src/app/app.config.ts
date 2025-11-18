@@ -5,13 +5,14 @@ import {
   provideZoneChangeDetection,
 } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { routes } from './app.routes';
 import { GlobalConfigService } from './service/config/global-config-service';
 import { APP_INITIALIZER } from '@angular/core';
 import { ToastrModule } from 'ngx-toastr';
 
 import { provideAnimations } from '@angular/platform-browser/animations';
+import { LanguageErrorInterceptor } from './Interceptors/language-error.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -38,5 +39,10 @@ export const appConfig: ApplicationConfig = {
         tapToDismiss: true,
       })
     ),
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: LanguageErrorInterceptor,
+      multi: true,
+    },
   ],
 };

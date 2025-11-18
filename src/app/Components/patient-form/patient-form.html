@@ -3,15 +3,27 @@
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h4 class="title">
-        <span class="accent">{{ mode === 'add' ? 'Add New Patient' : 'Edit Patient' }}</span>
-        <span class="muted">— Day {{ day }}</span>
+        <span class="accent">
+          {{
+            mode === 'add'
+              ? isAr()
+                ? 'إضافة مريض جديد'
+                : 'Add New Patient'
+              : isAr()
+              ? 'تعديل بيانات المريض'
+              : 'Edit Patient'
+          }}
+        </span>
+        <span class="muted"> — {{ isAr() ? 'اليوم' : 'Day' }} {{ day }} </span>
       </h4>
       <button class="btn btn-outline-secondary back-btn" (click)="goBack()">
-        ↩ Back to Calendar
+        {{ isAr() ? '↩ العودة للتقويم' : '↩ Back to Calendar' }}
       </button>
     </div>
 
-    <div *ngIf="loading" class="text-center text-muted py-4">Loading...</div>
+    <div *ngIf="loading" class="text-center text-muted py-4">
+      {{ isAr() ? 'جاري التحميل...' : 'Loading...' }}
+    </div>
 
     <!-- Card -->
     <div class="row justify-content-center" *ngIf="!loading">
@@ -20,12 +32,18 @@
           <div class="card-body p-4">
             <form (ngSubmit)="save()" novalidate>
               <div class="mb-3">
-                <label class="form-label fw-semibold">Time Slot</label>
+                <label class="form-label fw-semibold">
+                  {{ isAr() ? 'الوقت' : 'Time Slot' }}
+                </label>
                 <input type="text" class="form-control readonly" [value]="displayTime" disabled />
                 <div class="form-text" *ngIf="timeInfo">
                   {{
                     mode === 'add'
-                      ? 'This slot is available for reservation at '
+                      ? isAr()
+                        ? 'هذا الموعد متاح للحجز في الوقت '
+                        : 'This slot is available for reservation at '
+                      : isAr()
+                      ? 'وقت الحجز: '
                       : 'Appointment time: '
                   }}
                   <strong>{{ displayTime }}</strong>
@@ -33,35 +51,31 @@
               </div>
 
               <div class="mb-3">
-                <label class="form-label fw-semibold">Patient Name</label>
+                <label class="form-label fw-semibold">
+                  {{ isAr() ? 'اسم المريض' : 'Patient Name' }}
+                </label>
                 <input
                   type="text"
                   class="form-control"
                   [(ngModel)]="model.patient"
                   name="patient"
-                  placeholder="Enter full name"
+                  [placeholder]="isAr() ? 'اكتب الاسم الكامل' : 'Enter full name'"
                   required
                 />
               </div>
 
               <div class="mb-3">
-                <label class="form-label fw-semibold">Phone</label>
+                <label class="form-label fw-semibold">
+                  {{ isAr() ? 'رقم الجوال' : 'Phone' }}
+                </label>
                 <input
                   type="tel"
                   class="form-control"
                   [(ngModel)]="model.phone"
                   name="phone"
-                  placeholder="05XXXXXXXX"
+                  [placeholder]="isAr() ? '05XXXXXXXX' : '05XXXXXXXX'"
                   required
                 />
-              </div>
-
-              <div class="mb-4">
-                <label class="form-label fw-semibold">Status</label>
-                <select class="form-select" [(ngModel)]="model.status" name="status">
-                  <option value="Received">Received</option>
-                  <option value="Not Received">Not Received</option>
-                </select>
               </div>
 
               <div class="d-grid gap-2 mt-4">
@@ -70,10 +84,18 @@
                   type="submit"
                   [disabled]="!model.patient || !model.phone || (mode === 'add' && !timeInfo)"
                 >
-                  {{ mode === 'add' ? 'Add Patient' : 'Save Changes' }}
+                  {{
+                    mode === 'add'
+                      ? isAr()
+                        ? 'إضافة المريض'
+                        : 'Add Patient'
+                      : isAr()
+                      ? 'حفظ التغييرات'
+                      : 'Save Changes'
+                  }}
                 </button>
                 <button class="btn btn-outline-secondary" type="button" (click)="goBack()">
-                  Cancel
+                  {{ isAr() ? 'إلغاء' : 'Cancel' }}
                 </button>
               </div>
             </form>
@@ -81,7 +103,7 @@
         </div>
 
         <div class="info-note small text-muted mt-3 text-center" *ngIf="mode === 'add' && timeInfo">
-          * The appointment will be reserved at
+          {{ isAr() ? 'سيتم حجز الموعد في الوقت ' : 'The appointment will be reserved at ' }}
           <strong>{{ displayTime }}</strong
           >.
         </div>

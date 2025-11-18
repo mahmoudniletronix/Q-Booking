@@ -14,6 +14,8 @@ import {
 import { Subscription } from 'rxjs';
 import { AppToastService } from '../../service/Toastr/app-toast.service';
 
+import { LanguageService } from '../../service/lang/language.service';
+
 @Component({
   selector: 'app-available-list',
   standalone: true,
@@ -49,7 +51,8 @@ export class AvailableList implements OnInit, OnDestroy {
     public sch: ScheduleServices,
     private ticketSrv: TicketReservation,
     private availableSrv: AvailableServices,
-    private toast: AppToastService
+    private toast: AppToastService,
+    private languageService: LanguageService
   ) {
     this.routeSub = this.route.paramMap.subscribe((p) => {
       this.clinicId = +(p.get('clinicId') || 0);
@@ -74,7 +77,8 @@ export class AvailableList implements OnInit, OnDestroy {
         return;
       }
 
-      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
+      const langCode = this.isAr() ? 'ar' : 'en';
+      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, langCode);
 
       this.loading = true;
       this.loadSlots();
@@ -96,7 +100,8 @@ export class AvailableList implements OnInit, OnDestroy {
         return;
       }
 
-      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, 'en');
+      const langCode = this.isAr() ? 'ar' : 'en';
+      this.dayName = this.sch.getDayNameFor(this.clinicId, this.doctorId, this.day, langCode);
 
       this.loading = true;
       this.loadSlots();
@@ -105,6 +110,14 @@ export class AvailableList implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
+  }
+
+  get lang() {
+    return this.languageService.lang;
+  }
+
+  isAr(): boolean {
+    return this.languageService.lang() === 'ar';
   }
 
   // ====================== loadSlots ======================
@@ -148,7 +161,7 @@ export class AvailableList implements OnInit, OnDestroy {
             const dto = list.find((x) => (x.slotTime || this.extractTime(x.reservationDate)) === t);
             const ticket: Ticket = {
               id: dto?.id ?? 0,
-              patient: dto?.patientName ?? 'Booked',
+              patient: dto?.patientName ?? (this.isAr() ? 'محجوز' : 'Booked'),
               phone: dto?.phoneNumber ?? '',
               status: 'Received',
               timeSlot: t,
@@ -165,7 +178,11 @@ export class AvailableList implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to load reservations for slots', err);
         this.loading = false;
-        this.toast.error('Failed to load available slots. Please try again later.');
+        this.toast.error(
+          this.isAr()
+            ? 'فشل تحميل المواعيد المتاحة. يرجى المحاولة لاحقًا.'
+            : 'Failed to load available slots. Please try again later.'
+        );
       },
     });
   }
@@ -272,7 +289,11 @@ export class AvailableList implements OnInit, OnDestroy {
   save() {
     if (!this.selectedSlot) return;
     if (!this.model.patient || !this.model.phone) {
-      this.toast.warning('Please enter both patient name and phone number.');
+      this.toast.warning(
+        this.isAr()
+          ? 'يرجى إدخال اسم المريض ورقم الجوال.'
+          : 'Please enter both patient name and phone number.'
+      );
       return;
     }
 
@@ -287,15 +308,12 @@ export class AvailableList implements OnInit, OnDestroy {
 
     this.availableSrv.createReservation(payload).subscribe({
       next: (created) => {
-        // store last created ticket for summary
         this.lastCreatedTicket = created;
 
-        // refresh schedule so time slots are updated
         const d = new Date(this.day);
         this.sch.loadSchedule(this.clinicId, d.getFullYear(), d.getMonth() + 1);
         this.loadSlots();
 
-        // reset form but keep selected slot in case user wants to add more
         this.model = {
           id: 0,
           patient: '',
@@ -304,11 +322,17 @@ export class AvailableList implements OnInit, OnDestroy {
           timeSlot: this.timeInfo,
         };
 
-        this.toast.success('Reservation created successfully.');
+        this.toast.success(
+          this.isAr() ? 'تم إنشاء الحجز بنجاح.' : 'Reservation created successfully.'
+        );
       },
       error: (err) => {
         console.error('Reservation error', err);
-        this.toast.error('Failed to create reservation. Please try again later.');
+        this.toast.error(
+          this.isAr()
+            ? 'فشل إنشاء الحجز. يرجى المحاولة لاحقًا.'
+            : 'Failed to create reservation. Please try again later.'
+        );
       },
     });
   }

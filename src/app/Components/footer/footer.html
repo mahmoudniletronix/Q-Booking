@@ -1,6 +1,11 @@
 <footer class="footer bg-light text-center text-muted py-1 border-top">
   <div class="container">
-    <p class="mb-1">© 2025 CHG</p>
-    <!-- <p class="small mb-0"></p> -->
+    <p class="mb-1">
+      {{
+        isAr()
+          ? '© ' + year + ' CHG - جميع الحقوق محفوظة'
+          : '© ' + year + ' CHG - All rights reserved'
+      }}
+    </p>
   </div>
 </footer>

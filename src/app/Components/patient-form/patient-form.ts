@@ -13,6 +13,8 @@ import {
   TicketReservationDto,
 } from '../../service/ticket-reservation/ticket-reservation';
 
+import { LanguageService } from '../../service/lang/language.service';
+
 @Component({
   selector: 'app-patient-form',
   standalone: true,
@@ -44,7 +46,8 @@ export class PatientForm {
     private router: Router,
     public sch: ScheduleServices,
     private availableSrv: AvailableServices,
-    private ticketSrv: TicketReservation
+    private ticketSrv: TicketReservation,
+    private languageService: LanguageService
   ) {
     this.route.params.subscribe((p) => {
       const path = this.route.snapshot.routeConfig?.path ?? '';
@@ -64,6 +67,15 @@ export class PatientForm {
         this.initEditMode();
       }
     });
+  }
+
+  // ✅ Helpers
+  get lang() {
+    return this.languageService.lang;
+  }
+
+  isAr(): boolean {
+    return this.languageService.lang() === 'ar';
   }
 
   private initAddMode() {
@@ -208,11 +220,15 @@ export class PatientForm {
         },
         error: (err) => {
           console.error('Create reservation error', err);
-          alert('❌ Failed to create reservation.');
+          alert(this.isAr() ? ' فشل إنشاء الحجز.' : ' Failed to create reservation.');
         },
       });
     } else {
-      alert('ℹ️ Edit reservation is not implemented on backend yet.');
+      alert(
+        this.isAr()
+          ? ' تعديل الحجز غير متاح حاليًا من جهة الخادم.'
+          : 'Edit reservation is not implemented on backend yet.'
+      );
       this.goBack();
     }
   }

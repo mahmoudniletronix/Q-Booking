@@ -5,13 +5,17 @@
       <div class="row g-2 align-items-end filters-row flex-wrap">
         <!-- Branch -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
-          <label class="form-label small mb-1">Branch</label>
+          <label class="form-label small mb-1">
+            {{ isAr() ? 'الفرع' : 'Branch' }}
+          </label>
           <select
             class="form-select form-select-sm"
             [ngModel]="sch.selectedBranchId()"
             (ngModelChange)="onBranchChange($event)"
           >
-            <option [ngValue]="null" disabled>Choose branch...</option>
+            <option [ngValue]="null" disabled>
+              {{ isAr() ? 'اختر فرعًا...' : 'Choose branch...' }}
+            </option>
             <option *ngFor="let b of branches" [ngValue]="b.id">
               {{ b.name }}
             </option>
@@ -20,7 +24,9 @@
 
         <!-- Specialization -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
-          <label class="form-label small mb-1">Specialization</label>
+          <label class="form-label small mb-1">
+            {{ isAr() ? 'التخصص' : 'Specialization' }}
+          </label>
           <select
             class="form-select form-select-sm"
             [ngModel]="sch.selectedClinicId()"
@@ -31,8 +37,14 @@
               {{
                 sch.selectedBranchId()
                   ? clinicsLoading
-                    ? 'Loading...'
+                    ? isAr()
+                      ? 'جاري التحميل...'
+                      : 'Loading...'
+                    : isAr()
+                    ? 'اختر تخصصًا...'
                     : 'Select specialization...'
+                  : isAr()
+                  ? 'اختر فرعًا أولاً'
                   : 'Select a branch first'
               }}
             </option>
@@ -46,14 +58,18 @@
 
         <!-- Operator -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
-          <label class="form-label small mb-1">Operator</label>
+          <label class="form-label small mb-1">
+            {{ isAr() ? 'الطبيب' : 'Operator' }}
+          </label>
           <select
             class="form-select form-select-sm"
             [(ngModel)]="filter.operatorId"
             (ngModelChange)="onOperatorChange($event)"
             [disabled]="!sch.selectedClinicId()"
           >
-            <option [ngValue]="'all'">All operators</option>
+            <option [ngValue]="'all'">
+              {{ isAr() ? 'كل الأطباء' : 'All operators' }}
+            </option>
             <option
               *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
               [ngValue]="d.id"
@@ -66,7 +82,9 @@
         <!-- Local doctor search + Reset -->
         <div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12">
           <div class="d-flex justify-content-between align-items-center">
-            <label class="form-label small mb-1 mb-0">Search</label>
+            <label class="form-label small mb-1 mb-0">
+              {{ isAr() ? 'بحث' : 'Search' }}
+            </label>
 
             <button
               type="button"
@@ -75,7 +93,7 @@
               (click)="resetFilters()"
             >
               <i class="bi bi-x-circle"></i>
-              <span class="ms-1">Reset</span>
+              <span class="ms-1">{{ isAr() ? 'إعادة تعيين' : 'Reset' }}</span>
             </button>
           </div>
 
@@ -89,7 +107,7 @@
               name="globalSearch"
               [(ngModel)]="filter.searchQuery"
               (ngModelChange)="onSearchChange($event)"
-              placeholder="Search doctors by name..."
+              [placeholder]="isAr() ? 'ابحث عن الطبيب بالاسم...' : 'Search doctors by name...'"
             />
           </div>
         </div>
@@ -97,7 +115,9 @@
 
       <!-- Doctor Search Strips -->
       <div *ngIf="doctorSearchMode">
-        <div class="fw-semibold mb-2">Search Results:</div>
+        <div class="fw-semibold mb-2">
+          {{ isAr() ? 'نتائج البحث:' : 'Search Results:' }}
+        </div>
 
         <div class="strip-grid">
           <div
@@ -123,7 +143,9 @@
           </div>
         </div>
 
-        <div class="small text-muted mt-1">اضغط لفتح جدول مواعيد الطبيب</div>
+        <div class="small text-muted mt-1">
+          {{ isAr() ? 'اضغط لفتح جدول مواعيد الطبيب' : 'Click to open the doctor schedule.' }}
+        </div>
       </div>
 
       <!-- ================= GLOBAL SEARCH STRIPS ================= -->
@@ -131,10 +153,17 @@
         <div class="search-strips mb-3">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="fw-semibold">
-              Search Results:
+              {{ isAr() ? 'نتائج البحث:' : 'Search Results:' }}
               <span class="text-primary">
-                "{{ globalSearchQuery }}" ({{ globalSearchResults.length }} result{{
-                  globalSearchResults.length > 1 ? 's' : ''
+                “{{ globalSearchQuery }}” ({{ globalSearchResults.length }}
+                {{
+                  isAr()
+                    ? globalSearchResults.length > 1
+                      ? 'نتائج'
+                      : 'نتيجة'
+                    : globalSearchResults.length > 1
+                    ? 'results'
+                    : 'result'
                 }})
               </span>
             </div>
@@ -144,7 +173,7 @@
               class="btn btn-sm btn-outline-secondary"
               (click)="exitSearchMode()"
             >
-              ⬅ Back to Schedule
+              {{ isAr() ? '⬅ الرجوع للجدول' : '⬅ Back to Schedule' }}
             </button>
           </div>
 
@@ -157,7 +186,7 @@
               <div class="strip-main">
                 <div>
                   <span class="strip-title">
-                    {{ r.patientName || 'بدون اسم مريض' }}
+                    {{ r.patientName || (isAr() ? 'بدون اسم مريض' : 'No patient name') }}
                   </span>
                   <span class="ms-3 phoneNumber" *ngIf="r.customerInput">
                     {{ r.customerInput }}
@@ -175,13 +204,13 @@
 
               <div class="strip-meta">
                 <span class="badge bg-light text-dark me-2">
-                  Branch: {{ r.branchName }} (ID: {{ r.branchId }})
+                  {{ isAr() ? 'الفرع' : 'Branch' }}: {{ r.branchName }} (ID: {{ r.branchId }})
                 </span>
                 <span class="badge bg-light text-dark me-2">
-                  Specialization: {{ r.serviceParentName }}
+                  {{ isAr() ? 'التخصص' : 'Specialization' }}: {{ r.serviceParentName }}
                 </span>
                 <span class="badge bg-primary-subtle text-primary">
-                  Doctor: {{ r.serviceName }}
+                  {{ isAr() ? 'الطبيب' : 'Doctor' }}: {{ r.serviceName }}
                 </span>
               </div>
 
@@ -191,7 +220,9 @@
                   {{ r.slotTime }}
                 </span>
                 <span class="mx-2" *ngIf="r.createDate">
-                  ⏱️ Created: {{ r.createDate | date : 'short' }}
+                  ⏱️
+                  {{ isAr() ? 'أُنشئت:' : 'Created:' }}
+                  {{ r.createDate | date : 'short' }}
                 </span>
               </div>
 
@@ -202,14 +233,17 @@
           </div>
 
           <div class="small text-muted mt-1">
-            Click on any strip to view all ticket details and available actions.
+            {{
+              isAr()
+                ? 'اضغط على أي عنصر لعرض تفاصيل التذكرة والإجراءات المتاحة.'
+                : 'Click on any strip to view all ticket details and available actions.'
+            }}
           </div>
         </div>
       </div>
 
       <!-- ================= SCHEDULE TABLE ================= -->
       <ng-template #scheduleContent>
-        <!-- Schedule Table -->
         <div *ngIf="sch.selectedClinicId() as clinicId">
           <ng-container *ngIf="filteredClinicDoctors.length > 0; else noResults">
             <div class="schedule-wrap">
@@ -239,7 +273,9 @@
                 <table class="table table-bordered align-middle mb-0 schedule-table table-sm">
                   <thead class="table-light sticky-top">
                     <tr>
-                      <th class="first-col sticky-col text-center">Day</th>
+                      <th class="first-col sticky-col text-center">
+                        {{ isAr() ? 'اليوم' : 'Day' }}
+                      </th>
                       <th
                         *ngFor="let d of filteredClinicDoctors; trackBy: trackByDoctor"
                         class="text-center doctor-header sticky-top"
@@ -266,21 +302,27 @@
                             <button
                               class="pill pill-reserved"
                               type="button"
-                              [title]="c.reserved + ' reserved'"
+                              [title]="isAr() ? c.reserved + ' محجوز' : c.reserved + ' reserved'"
                               (click)="onReservedClick(clinicId, d, day)"
                             >
                               <span class="num">{{ c.reserved }}</span>
-                              <span class="label">Reserved</span>
+                              <span class="label">
+                                {{ isAr() ? 'محجوز' : 'Reserved' }}
+                              </span>
                             </button>
 
                             <button
                               class="pill pill-available"
                               type="button"
-                              [title]="'Available: ' + c.available"
+                              [title]="
+                                isAr() ? 'متاح: ' + c.available : 'Available: ' + c.available
+                              "
                               (click)="onAvailableClick(clinicId, d, day)"
                             >
                               <span class="num">{{ c.available }}</span>
-                              <span class="label">Available</span>
+                              <span class="label">
+                                {{ isAr() ? 'متاح' : 'Available' }}
+                              </span>
                             </button>
                           </div>
                         </ng-container>
@@ -295,7 +337,11 @@
 
         <ng-template #noResults>
           <div class="no-results text-center text-muted py-5">
-            لا توجد نتائج مطابقة لبحثك. جرّب تعديل البحث
+            {{
+              isAr()
+                ? 'لا توجد نتائج مطابقة لبحثك. جرّب تعديل البحث.'
+                : 'No matching results for your search. Try adjusting the filters.'
+            }}
           </div>
         </ng-template>
 
@@ -309,7 +355,7 @@
         <div class="search-modal">
           <div class="modal-header d-flex justify-content-between align-items-center mb-2">
             <div>
-              <div class="fw-semibold">Ticket #{{ p.number }}</div>
+              <div class="fw-semibold">{{ isAr() ? 'تذكرة رقم' : 'Ticket #' }}{{ p.number }}</div>
               <div class="text-muted small">
                 {{ p.patientName || p.serviceName || p.phoneNumber }}
               </div>
@@ -326,12 +372,16 @@
           <div class="modal-body">
             <div class="row g-2">
               <div class="col-6">
-                <div class="label">Ticket ID</div>
+                <div class="label">
+                  {{ isAr() ? 'معرّف التذكرة' : 'Ticket ID' }}
+                </div>
                 <div class="value">{{ p.id }}</div>
               </div>
 
               <div class="col-6">
-                <div class="label">Status</div>
+                <div class="label">
+                  {{ isAr() ? 'الحالة' : 'Status' }}
+                </div>
                 <div class="value">
                   <span class="badge" [ngClass]="getStatusClass(p)">
                     {{ getStatusLabel(p) }}
@@ -340,57 +390,61 @@
               </div>
 
               <div class="col-6">
-                <div class="label">Branch</div>
+                <div class="label">
+                  {{ isAr() ? 'الفرع' : 'Branch' }}
+                </div>
                 <div class="value">{{ p.branchName }} (ID: {{ p.branchId }})</div>
               </div>
 
               <div class="col-6">
-                <div class="label">Specialization</div>
+                <div class="label">
+                  {{ isAr() ? 'التخصص' : 'Specialization' }}
+                </div>
                 <div class="value">{{ p.serviceParentName }}</div>
               </div>
 
               <div class="col-6">
-                <div class="label">Doctor</div>
+                <div class="label">
+                  {{ isAr() ? 'الطبيب' : 'Doctor' }}
+                </div>
                 <div class="value">{{ p.serviceName }}</div>
               </div>
 
               <div class="col-6">
-                <div class="label">Reservation date</div>
+                <div class="label">
+                  {{ isAr() ? 'تاريخ الحجز' : 'Reservation date' }}
+                </div>
                 <div class="value">
                   {{ p.reservationDate | date : 'yyyy-MM-dd' }} — {{ p.slotTime }}
                 </div>
               </div>
 
               <div class="col-6" *ngIf="p.createDate">
-                <div class="label">Created at</div>
+                <div class="label">
+                  {{ isAr() ? 'تاريخ الإنشاء' : 'Created at' }}
+                </div>
                 <div class="value">
                   {{ p.createDate | date : 'short' }}
                 </div>
               </div>
 
-              <!-- <div class="col-6" *ngIf="p.serviceWorkFlow">
-                <div class="label">Workflow</div>
-                <div class="value">{{ p.serviceWorkFlow }}</div>
-              </div> -->
-
               <div class="col-6">
-                <div class="label">Patient</div>
+                <div class="label">
+                  {{ isAr() ? 'المريض' : 'Patient' }}
+                </div>
                 <div class="value">
-                  {{ p.patientName || 'بدون اسم' }}
+                  {{ p.patientName || (isAr() ? 'بدون اسم' : 'No name') }}
                 </div>
               </div>
 
               <div class="col-6">
-                <div class="label">Phone</div>
+                <div class="label">
+                  {{ isAr() ? 'الجوال' : 'Phone' }}
+                </div>
                 <div class="value">
                   {{ p.phoneNumber || '—' }}
                 </div>
               </div>
-
-              <!-- <div class="col-12" *ngIf="p.customerInput">
-                <div class="label">Note</div>
-                <div class="value">{{ p.customerInput }}</div>
-              </div> -->
             </div>
           </div>
 
@@ -401,7 +455,7 @@
               (click)="editSearchTicket(p)"
               [disabled]="isMissedTicket(p)"
             >
-              Edit ticket
+              {{ isAr() ? 'تعديل التذكرة' : 'Edit ticket' }}
             </button>
 
             <button
@@ -410,7 +464,7 @@
               (click)="printSearchTicket(p)"
               [disabled]="isMissedTicket(p) && isTicketActionsDisabled(p)"
             >
-              Print
+              {{ isAr() ? 'طباعة' : 'Print' }}
             </button>
           </div>
         </div>

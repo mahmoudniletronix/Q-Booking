@@ -20,6 +20,9 @@ import {
 import { GlobalConfigService } from '../../service/config/global-config-service';
 import { AppToastService } from '../../service/Toastr/app-toast.service';
 
+// ✅ سيرفس اللغة
+import { LanguageService } from '../../service/lang/language.service';
+
 type OperatorId = 'all' | number;
 
 interface VisibleDay {
@@ -56,7 +59,8 @@ export class QBookingServices implements OnDestroy, OnInit {
     private bus: TicketSearchBusService,
     private ticketReservation: TicketReservation,
     private globalConfig: GlobalConfigService,
-    private toast: AppToastService
+    private toast: AppToastService,
+    private languageService: LanguageService // ✅
   ) {
     this.buildVisibleDays();
     this.globalConfig.load().catch(() => {});
@@ -70,6 +74,15 @@ export class QBookingServices implements OnDestroy, OnInit {
     this.globalSearchSub = this.bus.results$.subscribe(({ items, term }) =>
       this.onGlobalResultsReceived(items, term)
     );
+  }
+
+  // ✅ Helpers للغة
+  get lang() {
+    return this.languageService.lang;
+  }
+
+  isAr(): boolean {
+    return this.languageService.lang() === 'ar';
   }
 
   ngOnInit() {
@@ -131,6 +144,7 @@ export class QBookingServices implements OnDestroy, OnInit {
       this.reloadIfReady();
     }, 100);
   }
+
   editSearchTicket(t: TicketSearchResultDto) {
     let clinic =
       this.sch.clinics.find(
@@ -146,7 +160,11 @@ export class QBookingServices implements OnDestroy, OnInit {
 
     if (!clinicId || !doctorId) {
       console.warn('Missing clinicId or doctorId for ticket search result', t);
-      this.toast.error('لا يمكن فتح التذكرة لعدم توفر بيانات العيادة أو الطبيب.');
+      this.toast.error(
+        this.isAr()
+          ? 'لا يمكن فتح التذكرة لعدم توفر بيانات العيادة أو الطبيب.'
+          : 'Cannot open this ticket because clinic or doctor data is missing.'
+      );
       return;
     }
 
@@ -189,9 +207,12 @@ export class QBookingServices implements OnDestroy, OnInit {
 
   getStatusLabel(r: TicketSearchResultDto): string {
     if (!r.isActive && this.isPastDate(r.reservationDate)) {
-      return 'Missed';
+      return this.isAr() ? 'لم يحضر' : 'Missed';
     }
-    return r.isActive ? 'Active' : 'Inactive';
+    if (r.isActive) {
+      return this.isAr() ? 'نشط' : 'Active';
+    }
+    return this.isAr() ? 'غير نشط' : 'Inactive';
   }
 
   getStatusClass(r: TicketSearchResultDto): string {
@@ -231,7 +252,11 @@ export class QBookingServices implements OnDestroy, OnInit {
 
   async printSearchTicket(t: TicketSearchResultDto) {
     if (!this.isSameDate(t.reservationDate)) {
-      this.toast.warning('لا يمكن طباعة التذكرة إلا في يوم الحجز نفسه.');
+      this.toast.warning(
+        this.isAr()
+          ? 'لا يمكن طباعة التذكرة إلا في يوم الحجز نفسه.'
+          : 'Tickets can only be printed on the same reservation day.'
+      );
       return;
     }
 
@@ -243,43 +268,51 @@ export class QBookingServices implements OnDestroy, OnInit {
       const blob = await this.ticketReservation.printFromReservation(reservationId).toPromise();
       if (!blob) return;
 
+      console.log('print blob type:', blob.type, 'size:', blob.size);
+
+      let dto: any = null;
+      try {
+        const txt = await blob.text();
+        const parsed = JSON.parse(txt);
+
+        dto = parsed?.response ?? parsed?.item ?? parsed;
+
+        console.log('parsed ticket dto:', dto);
+      } catch {
+        dto = null;
+      }
+
+      if (dto && dto.number) {
+        const inner = this.buildLegacyTicketHtml(dto as TicketPrintDto);
+        this.openPreviewWindow(`#${dto.number}`, inner, { autoPrint: true });
+        return;
+      }
+
       const contentType = (blob.type || '').toLowerCase();
 
       if (contentType.includes('pdf')) {
         const url = URL.createObjectURL(blob);
         this.openPreviewWindow(
-          'Ticket Preview',
+          this.isAr() ? 'معاينة التذكرة' : 'Ticket Preview',
           `<iframe id="pdfFrame" src="${url}" style="border:0;width:100%;height:100vh"></iframe>`,
           { autoPrint: true }
         );
         return;
       }
 
-      let asJson: any = null;
-      try {
-        const txt = await blob.text();
-        const parsed = JSON.parse(txt);
-        asJson = parsed?.item ?? parsed;
-      } catch {
-        asJson = null;
-      }
-      if (asJson && asJson.number) {
-        const inner = this.buildLegacyTicketHtml(asJson as TicketPrintDto);
-        this.openPreviewWindow(`#${asJson.number}`, inner, { autoPrint: true });
-        return;
-      }
-
       const url = URL.createObjectURL(blob);
       this.openPreviewWindow(
-        'Ticket Preview',
+        this.isAr() ? 'معاينة التذكرة' : 'Ticket Preview',
         `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#fff">
-            <img src="${url}" style="max-width:100%;max-height:100%" />
-          </div>`,
+          <img src="${url}" style="max-width:100%;max-height:100%" />
+        </div>`,
         { autoPrint: true }
       );
     } catch (err) {
       console.error('Print error', err);
-      this.toast.error('فشل في فتح معاينة الطباعة.');
+      this.toast.error(
+        this.isAr() ? 'فشل في فتح معاينة الطباعة.' : 'Failed to open print preview.'
+      );
     }
   }
 
@@ -334,7 +367,7 @@ export class QBookingServices implements OnDestroy, OnInit {
 
     w.document.open();
     w.document.write(`
-      <html lang="ar" dir="rtl">
+      <html lang="${this.isAr() ? 'ar' : 'en'}" dir="${this.isAr() ? 'rtl' : 'ltr'}">
         <head>
           <meta charset="utf-8"/><title>${title}</title>
           <style>${css}</style>
@@ -342,8 +375,8 @@ export class QBookingServices implements OnDestroy, OnInit {
         <body>
           <div class="toolbar">
             <div class="title">${title}</div>
-            <button class="btn-print" onclick="print()">Print</button>
-            <button class="btn-close" onclick="close()">Close</button>
+            <button class="btn-print" onclick="print()">${this.isAr() ? 'طباعة' : 'Print'}</button>
+            <button class="btn-close" onclick="close()">${this.isAr() ? 'إغلاق' : 'Close'}</button>
           </div>
           <div class="content">
             <div class="print-wrap">
@@ -636,7 +669,8 @@ export class QBookingServices implements OnDestroy, OnInit {
 
   private updateHeaderPath() {
     const clinicName = this.selectedClinicName;
-    const extra = clinicName && clinicName !== 'Select a specialization' ? `/ ${clinicName}` : '';
+    const placeholder = this.isAr() ? 'اختر تخصصًا' : 'Select a specialization';
+    const extra = clinicName && clinicName !== placeholder ? `/ ${clinicName}` : '';
     this.headerPath.setExtraPath(extra);
   }
 
@@ -743,13 +777,21 @@ export class QBookingServices implements OnDestroy, OnInit {
         this.doctorSearchMode = this.doctorSearchResults.length > 0;
 
         if (!this.doctorSearchResults.length) {
-          this.toast.info('لا توجد نتائج مطابقة لاسم الطبيب المدخل.');
+          this.toast.info(
+            this.isAr()
+              ? 'لا توجد نتائج مطابقة لاسم الطبيب المدخل.'
+              : 'No doctors match the entered name.'
+          );
         }
       },
       error: () => {
         this.doctorSearchResults = [];
         this.doctorSearchMode = false;
-        this.toast.error('حدث خطأ أثناء البحث عن الأطباء.');
+        this.toast.error(
+          this.isAr()
+            ? 'حدث خطأ أثناء البحث عن الأطباء.'
+            : 'An error occurred while searching for doctors.'
+        );
       },
     });
   }
@@ -842,7 +884,7 @@ export class QBookingServices implements OnDestroy, OnInit {
   }
 
   get selectedClinicName(): string {
-    return this.selectedClinic?.name ?? 'Select a specialization';
+    return this.selectedClinic?.name ?? (this.isAr() ? 'اختر تخصصًا' : 'Select a specialization');
   }
 
   private get selectedClinicDoctorsInternal(): Doctor[] {
@@ -877,9 +919,10 @@ export class QBookingServices implements OnDestroy, OnInit {
     const daysInMonth = new Date(this.viewYear, this.viewMonth + 1, 0).getDate();
     const start = this.startDayForView;
     const result: VisibleDay[] = [];
+
     for (let d = start; d <= daysInMonth; d++) {
       const date = new Date(this.viewYear, this.viewMonth, d);
-      const label = date.toLocaleDateString('en-GB', {
+      const label = date.toLocaleDateString('en-US', {
         weekday: 'short',
         day: '2-digit',
         month: 'short',
@@ -945,6 +988,7 @@ export class QBookingServices implements OnDestroy, OnInit {
     const dayKey = this.formatDateKey(day.date);
     this.router.navigate(['/patient/available', clinicId, doctor.id, dayKey]);
   }
+
   isMissedTicket(r: TicketSearchResultDto): boolean {
     return !r.isActive && this.isPastDate(r.reservationDate);
   }

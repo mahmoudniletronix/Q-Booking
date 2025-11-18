@@ -4,14 +4,25 @@
     <div class="page-header d-flex align-items-center justify-content-between mb-4 flex-wrap">
       <button class="btn-back" (click)="back()">↩</button>
       <div class="text-center flex-grow-1">
-        <h4 class="title mb-1">Available — {{ dayName }} {{ day }}</h4>
-        <div class="sub">Pick a time slot and complete the reservation details.</div>
+        <h4 class="title mb-1">
+          {{ isAr() ? 'المواعيد المتاحة —' : 'Available —' }}
+          {{ dayName }} {{ day }}
+        </h4>
+        <div class="sub">
+          {{
+            isAr()
+              ? 'اختر موعدًا وأكمل بيانات الحجز.'
+              : 'Pick a time slot and complete the reservation details.'
+          }}
+        </div>
       </div>
     </div>
 
     <div class="row justify-content-center align-items-start layout-row">
       <div class="col-lg-9 col-md-7 mb-4 mb-md-0">
-        <div *ngIf="loading" class="text-center py-4 text-muted">Loading slots...</div>
+        <div *ngIf="loading" class="text-center py-4 text-muted">
+          {{ isAr() ? 'جاري تحميل المواعيد...' : 'Loading slots...' }}
+        </div>
 
         <div class="avail-grid" *ngIf="!loading && slots.length; else noSlots">
           <div
@@ -24,7 +35,9 @@
             <div class="card-top">
               <span class="time">{{ formatTime(s.timeSlot) }}</span>
               <span class="type-chip" [ngClass]="isReserved(s) ? 'reserved' : 'available'">
-                {{ isReserved(s) ? 'Reserved' : 'Available' }}
+                {{
+                  isReserved(s) ? (isAr() ? 'محجوز' : 'Reserved') : isAr() ? 'متاح' : 'Available'
+                }}
               </span>
             </div>
 
@@ -32,7 +45,7 @@
               <ng-template #reservedInfo>
                 <div class="reserved-label">
                   <span class="ico"></span>
-                  {{ s.ticket?.patient || 'Booked' }}
+                  {{ s.ticket?.patient || (isAr() ? 'محجوز' : 'Booked') }}
                 </div>
               </ng-template>
             </div>
@@ -44,7 +57,9 @@
         <ng-template #noSlots>
           <div class="empty-state text-center mt-3" *ngIf="!loading">
             <div class="emoji">🗓️</div>
-            <div class="lead fw-semibold">No available slots for this day.</div>
+            <div class="lead fw-semibold">
+              {{ isAr() ? 'لا توجد مواعيد متاحة لهذا اليوم.' : 'No available slots for this day.' }}
+            </div>
           </div>
         </ng-template>
       </div>
@@ -57,11 +72,19 @@
               <div class="form-header mb-3">
                 <h5 class="form-title mb-1">
                   <span class="accent">
-                    {{ mode === 'add' ? 'Add New Appointment' : 'Edit Appointment' }}
+                    {{
+                      mode === 'add'
+                        ? isAr()
+                          ? 'إضافة حجز جديد'
+                          : 'Add New Appointment'
+                        : isAr()
+                        ? 'تعديل الحجز'
+                        : 'Edit Appointment'
+                    }}
                   </span>
                 </h5>
                 <div class="slot-label">
-                  <strong> Schedule: </strong>
+                  <strong> {{ isAr() ? 'الموعد:' : 'Schedule:' }} </strong>
                   <span class="muted">{{ day }} </span>
                   {{ formatTime(timeInfo) }}
                 </div>
@@ -69,7 +92,9 @@
 
               <form (ngSubmit)="save()" novalidate>
                 <div class="mb-3">
-                  <label class="form-label fw-semibold">Patient Name</label>
+                  <label class="form-label fw-semibold">
+                    {{ isAr() ? 'اسم المريض' : 'Patient Name' }}
+                  </label>
                   <input
                     type="text"
                     class="form-control"
@@ -81,7 +106,9 @@
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label fw-semibold">Phone</label>
+                  <label class="form-label fw-semibold">
+                    {{ isAr() ? 'رقم الجوال' : 'Phone' }}
+                  </label>
                   <input
                     type="tel"
                     class="form-control"
@@ -97,14 +124,22 @@
                     type="submit"
                     [disabled]="!model.patient || !model.phone"
                   >
-                    {{ mode === 'add' ? 'Add Appointment' : 'Save Changes' }}
+                    {{
+                      mode === 'add'
+                        ? isAr()
+                          ? 'إضافة الحجز'
+                          : 'Add Appointment'
+                        : isAr()
+                        ? 'حفظ التعديلات'
+                        : 'Save Changes'
+                    }}
                   </button>
                   <button
                     class="btn btn-outline-secondary"
                     type="button"
                     (click)="clearSelection()"
                   >
-                    Cancel
+                    {{ isAr() ? 'إلغاء' : 'Cancel' }}
                   </button>
                 </div>
               </form>
@@ -116,9 +151,11 @@
           <div class="details-placeholder text-center text-muted">
             <div class="emoji"></div>
             <div class="mt-2">
-              Select an available time slot on the left
-              <br />
-              to add appointment details here.
+              {{
+                isAr()
+                  ? 'اختر موعدًا متاحًا من القائمة على اليسار لإضافة تفاصيل الحجز هنا.'
+                  : 'Select an available time slot on the left to add appointment details here.'
+              }}
             </div>
           </div>
         </ng-template>
@@ -127,30 +164,42 @@
         <div class="ticket-summary-card mt-3" *ngIf="lastCreatedTicket as t">
           <div class="card shadow-sm border-0">
             <div class="card-body p-3">
-              <h6 class="mb-3 fw-semibold">Last created ticket</h6>
+              <h6 class="mb-3 fw-semibold">
+                {{ isAr() ? 'آخر تذكرة تم إنشاؤها' : 'Last created ticket' }}
+              </h6>
 
               <div class="summary-row d-flex justify-content-between mb-1">
-                <span class="label text-muted">Number</span>
+                <span class="label text-muted">
+                  {{ isAr() ? 'الرقم' : 'Number' }}
+                </span>
                 <span class="value fw-semibold">{{ t.number }}</span>
               </div>
 
               <div class="summary-row d-flex justify-content-between mb-1">
-                <span class="label text-muted">Patient</span>
+                <span class="label text-muted">
+                  {{ isAr() ? 'المريض' : 'Patient' }}
+                </span>
                 <span class="value">{{ t.patientName }}</span>
               </div>
 
               <div class="summary-row d-flex justify-content-between mb-1">
-                <span class="label text-muted">Phone</span>
+                <span class="label text-muted">
+                  {{ isAr() ? 'الجوال' : 'Phone' }}
+                </span>
                 <span class="value">{{ t.phoneNumber }}</span>
               </div>
 
               <div class="summary-row d-flex justify-content-between mb-1">
-                <span class="label text-muted">Date</span>
+                <span class="label text-muted">
+                  {{ isAr() ? 'التاريخ' : 'Date' }}
+                </span>
                 <span class="value">{{ summaryDate(t) }}</span>
               </div>
 
               <div class="summary-row d-flex justify-content-between mb-1">
-                <span class="label text-muted">Time</span>
+                <span class="label text-muted">
+                  {{ isAr() ? 'الوقت' : 'Time' }}
+                </span>
                 <span class="value">{{ summaryTime(t) }}</span>
               </div>
             </div>
