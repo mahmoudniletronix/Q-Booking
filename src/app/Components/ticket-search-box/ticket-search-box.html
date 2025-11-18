@@ -1,4 +1,4 @@
-<div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12 search-box">
+<div class="col-xl-3 col-lg-3 col-md-3 col-sm-6 col-12 search-box" [class.is-ar]="isAr()">
   <div class="input-group input-group-sm">
     <span class="input-group-text">
       <i class="bi bi-search"></i>
@@ -9,7 +9,12 @@
       name="globalSearch"
       [(ngModel)]="searchTerm"
       (input)="onInput($event.target.value)"
-      placeholder="Search patient reservation by name or phone number.."
+      [placeholder]="
+        isAr()
+          ? 'البحث عن حجز مريض بالاسم أو رقم الجوال...'
+          : 'Search patient reservation by name or phone number...'
+      "
+      [dir]="isAr() ? 'rtl' : 'ltr'"
     />
   </div>
 </div>

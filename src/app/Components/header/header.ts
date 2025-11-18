@@ -55,13 +55,9 @@ export class Header {
 
   onPathClick(index: number) {
     const lastIndex = this.headerSegments.length - 1;
-
-    if (index === lastIndex) {
-      return;
-    }
+    if (index === lastIndex) return;
 
     const steps = index - lastIndex;
-
     if (typeof window !== 'undefined' && window.history) {
       window.history.go(steps);
     }

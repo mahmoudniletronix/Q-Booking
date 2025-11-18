@@ -117,12 +117,10 @@ export class ReceivedList {
     });
   }
 
-  // ================== Load ==================
   ngOnDestroy(): void {
     this.scheduleSub?.unsubscribe();
   }
 
-  // ===== Language helper =====
   isAr(): boolean {
     return this.languageService.lang() === 'ar';
   }
@@ -217,8 +215,6 @@ export class ReceivedList {
     }
   }
 
-  // ================== Date helpers for rules ==================
-
   private normalizeDateOnly(value: string | Date | null | undefined): Date | null {
     if (!value) return null;
     const d = new Date(value);
@@ -235,7 +231,6 @@ export class ReceivedList {
     return d.getTime() === today.getTime();
   }
 
-  /** يبني تاريخ ووقت التذكرة من reservationDate + timeSlot */
   private buildTicketDateTime(t: ReservedTicketVm): Date | null {
     if (!t?.reservationDate) return null;
     const d = new Date(t.reservationDate);
@@ -265,8 +260,6 @@ export class ReceivedList {
     const now = new Date();
     return dt.getTime() >= now.getTime();
   }
-
-  // ================== (Change Slot) ==================
 
   private updateTicketSlot(t: ReservedTicketVm, newSlotHms: string) {
     const normalized = this.ensureHms(newSlotHms);
@@ -331,12 +324,11 @@ export class ReceivedList {
     this.newSlotValue = '';
   }
 
-  // ================== Helpers ==================
-
   private buildDayLabel(raw: string): string {
     const d = new Date(raw);
     if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString(this.isAr() ? 'ar-SA' : undefined, {
+      // استخدام التاريخ الميلادي فقط
+      return d.toLocaleDateString(undefined, {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -395,8 +387,6 @@ export class ReceivedList {
     return `${y}-${m}-${d}`;
   }
 
-  // ================== Selection ==================
-
   trackById = (_: number, t: ReservedTicketVm) => t.id;
 
   onTicketClick(t: ReservedTicketVm) {
@@ -444,8 +434,6 @@ export class ReceivedList {
     return this.items.length > 0 && this.selectedIds.size === this.items.length;
   }
 
-  // ================== Search results ==================
-
   onSearchResults(results: TicketSearchResultDto[]) {
     if (!results || !results.length) {
       this.clearSearchMode();
@@ -474,8 +462,6 @@ export class ReceivedList {
   closeSearchTicketPopup() {
     this.searchPopupOpen = false;
   }
-
-  // ================== Move / Cancel ==================
 
   canMove(): boolean {
     if (
@@ -595,8 +581,6 @@ export class ReceivedList {
     });
   }
 
-  // ================== Change Day ==================
-
   canChangeDay(): boolean {
     return !!this.newDayValue && this.selectedIds.size > 0;
   }
@@ -646,8 +630,6 @@ export class ReceivedList {
       },
     });
   }
-
-  // ================== PRINT helpers ==================
 
   private async printByReservationId(reservationId: number, win?: Window | null) {
     try {

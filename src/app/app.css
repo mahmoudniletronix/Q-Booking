@@ -3,16 +3,25 @@ body {
   font-family: 'DigitalSansEF', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   height: 100%;
   margin: 0;
-  background: linear-gradient(0deg, #1a80b6 0%, #36b9cc 30%, #fff 100%) !important;
+
+  background: linear-gradient(
+    0deg,
+    var(--main-color, #1a80b6) 0%,
+    var(--secondary-color, #36b9cc) 30%,
+    var(--background-color, #ffffff) 100%
+  ) !important;
+
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-size: cover;
 }
+
 body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
+
 main {
   flex: 1;
 }

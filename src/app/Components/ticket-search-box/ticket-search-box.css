@@ -3,6 +3,24 @@
   width: 100%;
 }
 
+/* RTL mode */
+.search-box.is-ar .input-group {
+  direction: rtl;
+}
+
+.search-box.is-ar .input-group-text {
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.search-box.is-ar .form-control {
+  text-align: right;
+}
+
+/* LTR default */
+.search-box:not(.is-ar) .form-control {
+  text-align: left;
+}
+
 .search-dropdown {
   position: absolute;
   top: 100%;
@@ -61,6 +79,10 @@
   margin-bottom: 2px;
 }
 
+.search-box.is-ar .line-main {
+  flex-direction: row-reverse;
+}
+
 .doctor-name {
   font-weight: 700;
   color: #111827;
@@ -89,13 +111,13 @@
 }
 
 .badge-clinic {
-  background: rgba(59, 130, 246, 0.1);
-  color: #1d4ed8;
+  background: color-mix(in srgb, var(--main-color) 10%, #ffffff 90%);
+  color: var(--main-color);
 }
 
 .badge-branch {
-  background: rgba(16, 185, 129, 0.1);
-  color: #047857;
+  background: color-mix(in srgb, var(--secondary-color) 10%, #ffffff 90%);
+  color: var(--secondary-color);
 }
 
 .line-sub2,
@@ -105,4 +127,10 @@
   gap: 8px;
   font-size: 10px;
   color: #6b7280;
+}
+
+.search-box.is-ar .line-sub2,
+.search-box.is-ar .line-sub3 {
+  flex-direction: row-reverse;
+  text-align: right;
 }

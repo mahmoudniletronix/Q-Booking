@@ -1,16 +1,26 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 header-main">
+<nav
+  class="navbar navbar-expand-lg header-main"
+  [class.is-ar]="lang() === 'ar'"
+  [attr.dir]="lang() === 'ar' ? 'rtl' : 'ltr'"
+>
   <div
     class="header-container d-flex align-items-center justify-content-between w-100 flex-wrap gap-2"
   >
-    <div class="d-flex align-items-center">
+    <div class="d-flex align-items-center flex-wrap gap-2 header-left">
       <div class="q-booking d-flex align-items-center me-3">
         <h2 class="q-booking-title mb-0">
           <span class="q-text">Q</span><span class="booking-text">-Booking</span>
         </h2>
       </div>
 
-      <div class="d-flex align-items-center me-3">
-        <img [src]="orgLogo()" [alt]="orgName() + ' Logo'" width="42" height="42" class="me-2" />
+      <div class="d-flex align-items-center me-3 org-block">
+        <img
+          [src]="orgLogo()"
+          [alt]="orgName() + ' Logo'"
+          width="42"
+          height="42"
+          class="me-2 org-logo"
+        />
         <span class="org-name fw-semibold">{{ orgName() }}</span>
       </div>
 
@@ -20,56 +30,20 @@
             {{ part }}
           </span>
           <span *ngIf="i < headerSegments.length - 1" class="path-separator">
-            <i class="bi bi-chevron-right"></i>
+            <i [ngClass]="lang() === 'ar' ? 'bi bi-chevron-left' : 'bi bi-chevron-right'"></i>
           </span>
         </ng-container>
       </h4>
     </div>
 
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm py-3 header-main">
-      <div
-        class="header-container d-flex align-items-center justify-content-between w-100 flex-wrap gap-2"
-      >
-        <div class="d-flex align-items-center">
-          <div class="q-booking d-flex align-items-center me-3">
-            <h2 class="q-booking-title mb-0">
-              <span class="q-text">Q</span><span class="booking-text">-Booking</span>
-            </h2>
-          </div>
-
-          <div class="d-flex align-items-center me-3">
-            <img
-              [src]="orgLogo()"
-              [alt]="orgName() + ' Logo'"
-              width="42"
-              height="42"
-              class="me-2"
-            />
-            <span class="org-name fw-semibold">{{ orgName() }}</span>
-          </div>
-
-          <h4 class="mb-0 header-path" *ngIf="headerSegments.length">
-            <ng-container *ngFor="let part of headerSegments; let i = index">
-              <span class="path-segment" (click)="onPathClick(i)">
-                {{ part }}
-              </span>
-              <span *ngIf="i < headerSegments.length - 1" class="path-separator">
-                <i class="bi bi-chevron-right"></i>
-              </span>
-            </ng-container>
-          </h4>
-        </div>
-
-        <div class="header-actions d-flex align-items-center gap-3">
-          <div class="search-box">
-            <app-ticket-search></app-ticket-search>
-          </div>
-
-          <button type="button" class="btn btn-sm lang-btn" (click)="toggleLang()">
-            {{ lang() === 'ar' ? 'English' : 'عربي' }}
-          </button>
-        </div>
+    <div class="header-actions d-flex align-items-center gap-3">
+      <div class="search-box">
+        <app-ticket-search></app-ticket-search>
       </div>
-    </nav>
+
+      <button type="button" class="btn btn-sm lang-btn" (click)="toggleLang()">
+        {{ lang() === 'ar' ? 'English' : 'عربي' }}
+      </button>
+    </div>
   </div>
 </nav>

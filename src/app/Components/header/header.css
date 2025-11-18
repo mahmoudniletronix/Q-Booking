@@ -1,6 +1,6 @@
 .navbar {
-  border-bottom: 2px solid #e3f2fd;
-  background-color: #ffffff;
+  border-bottom: 2px solid color-mix(in srgb, var(--secondary-color) 30%, #ffffff 70%);
+  background-color: var(--background-color);
   z-index: 1050;
 }
 
@@ -10,10 +10,10 @@
   left: 0;
   width: 100%;
   z-index: 1050;
-  border-bottom: 2px solid #e3f2fd;
-  background-color: #ffffff;
+  border-bottom: 2px solid color-mix(in srgb, var(--secondary-color) 30%, #ffffff 70%);
+  background-color: var(--background-color);
   padding-block: 0.75rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
 }
 
 .header-container {
@@ -39,13 +39,24 @@ body,
 }
 
 .q-text {
-  color: #d32f2f;
+  color: var(--main-color);
 }
 
 .booking-text {
-  color: #6c757d;
+  color: var(--secondary-color);
 }
 
+.org-logo {
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.org-name {
+  font-size: 1rem;
+  color: var(--main-color);
+}
+
+/* Breadcrumb */
 .header-path {
   font-size: 1rem;
   font-weight: 600;
@@ -58,6 +69,12 @@ body,
 
 .path-segment {
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.path-segment:hover {
+  text-decoration: underline;
+  color: var(--main-color);
 }
 
 .path-separator {
@@ -67,42 +84,18 @@ body,
   align-items: center;
 }
 
-@media (max-width: 576px) {
-  .header-container {
-    padding-inline: 14px;
-  }
-
-  .q-booking-title {
-    font-size: 1.3rem;
-  }
-
-  .header-path {
-    margin-top: 4px;
-    font-size: 0.9rem;
-  }
-
-  body,
-  .page-content {
-    padding-top: 70px;
-  }
-}
 .search-box {
   float: right;
 }
-.header-path .path-segment {
-  cursor: pointer;
-}
 
-.header-path .path-segment:hover {
-  text-decoration: underline;
-}
+/* Language button */
 .lang-btn {
   padding: 4px 14px;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
   border: none;
-  background: linear-gradient(135deg, #1e293b, #0ea5e9);
+  background: linear-gradient(135deg, var(--main-color), var(--secondary-color));
   color: #f9fafb;
   letter-spacing: 0.03em;
   display: inline-flex;
@@ -125,4 +118,17 @@ body,
   transform: translateY(0) scale(0.98);
   box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
   opacity: 0.9;
+}
+
+.header-main.is-ar .header-container {
+  direction: rtl;
+}
+
+.header-main.is-ar .header-left,
+.header-main.is-ar .header-path {
+  text-align: right;
+}
+
+.header-main.is-ar .path-separator i {
+  transform: scaleX(-1);
 }

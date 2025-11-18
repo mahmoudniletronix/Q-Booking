@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { LanguageService } from '../../service/lang/language.service';
+import { GlobalConfigService } from '../../service/config/global-config-service';
 
 @Component({
   selector: 'app-footer',
@@ -9,7 +10,10 @@ import { LanguageService } from '../../service/lang/language.service';
   styleUrl: './footer.css',
 })
 export class Footer {
-  constructor(private languageService: LanguageService) {}
+  constructor(
+    private languageService: LanguageService,
+    private globalConfig: GlobalConfigService
+  ) {}
 
   get year(): number {
     return new Date().getFullYear();
@@ -17,5 +21,9 @@ export class Footer {
 
   isAr(): boolean {
     return this.languageService.lang() === 'ar';
+  }
+
+  get orgName(): string {
+    return this.globalConfig.orgName();
   }
 }
